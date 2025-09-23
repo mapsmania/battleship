@@ -219,23 +219,16 @@
 
                     // Peer left
                     this.signalRConnection.on("WebRTCPeerLeft", (userId) => {
-                        if (userId === this.opponentUserId) {
-                            this.updateStatus('Peer disconnected.');
-                            if (this.peerMarkers[userId]) {
-                                this.peerMarkers[userId].remove();
-                                delete this.peerMarkers[userId];
-                            }
-                            // reset peer state so room can be reused (optional)
-                            this.connected = false;
-                            this.opponentUserId = null;
-                            // Close existing peer connection
-                            if (this.peerConnection) {
-                                try { this.peerConnection.close(); } catch(e) {}
-                                this.peerConnection = null;
-                                this.dataChannel = null;
-                            }
-                        }
-                    });
+    if (userId === this.opponentUserId) {
+        this.updateStatus('Peer disconnected. Marker remains.');
+        // ❌ Do not remove marker anymore
+        // if (this.peerMarkers[userId]) {
+        //     this.peerMarkers[userId].remove();
+        //     delete this.peerMarkers[userId];
+        // }
+    }
+});
+
 
                     await this.signalRConnection.start();
                     this.updateStatus('Connected to signaling server. Ready to create/join a room.');
