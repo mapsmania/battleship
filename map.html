@@ -419,26 +419,33 @@
             }
 
             handleMarkerUpdate(data) {
-                if (!data || typeof data.userId === 'undefined') return;
-                const { lng, lat, userId, userName } = data;
+    if (!data || typeof data.userId === 'undefined') return;
+    const { lng, lat, userId, userName } = data;
 
-                // ignore our own updates if echoed back
-                if (userId === this.myUserId) return;
+    // ignore our own updates if echoed back
+    if (userId === this.myUserId) return;
 
-                if (!this.peerMarkers[userId]) {
-                    // create a marker for this peer
-                    this.peerMarkers[userId] = new maplibregl.Marker({ color: "#d9534f" })
-                        .setLngLat([lng, lat])
-                        .setPopup(new maplibregl.Popup({ offset: 12 }).setText(userName || `Peer ${userId}`))
-                        .addTo(this.map);
-                } else {
-                    // update existing marker
-                    this.peerMarkers[userId].setLngLat([lng, lat]);
-                    // update popup text if we received a new name
-                    const popup = this.peerMarkers[userId].getPopup();
-                    if (popup && userName) popup.setText(userName);
-                }
-            }
+    if (!this.peerMarkers[userId]) {
+        // create a marker for this peer
+        const popup = new maplibregl.Popup({ offset: 12 }).setText(userName || `Peer ${userId}`);
+        this.peerMarkers[userId] = new maplibregl.Marker({ color: "#d9534f" })
+            .setLngLat([lng, lat])
+            .setPopup(popup)
+            .addTo(this.map);
+
+        // 👇 auto-open the popup right after adding
+        this.peerMarkers[userId].togglePopup();
+
+    } else {
+        // update existing marker
+        this.peerMarkers[userId].setLngLat([lng, lat]);
+
+        // update popup text if we received a new name
+        const popup = this.peerMarkers[userId].getPopup();
+        if (popup && userName) popup.setText(userName);
+    }
+}
+
 
             // ---------------------------
             // UI HELPERS
