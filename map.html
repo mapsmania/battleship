@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Shareable WebRTC Map with MapLibre</title>
-    
+
     <!-- MapLibre GL JS for the map -->
-    <link href='https://unpkg.com/maplibre-gl/dist/maplibre-gl.css' rel='stylesheet' />
-    <script src='https://unpkg.com/maplibre-gl/dist/maplibre-gl.js'></script>
-    
+    <link href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
+
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -27,7 +27,7 @@
             border-radius: 12px;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
             width: 90%;
-            max-width: 800px;
+            max-width: 900px;
         }
         h1 { color: #00796b; margin-bottom: 1rem; }
         .hidden { display: none; }
@@ -54,7 +54,7 @@
             border: none;
         }
         #connectionPanel button:disabled { background-color: #9e9e9e; }
-        
+
         #gameStatus {
             margin-top: 1.5rem;
             font-size: 1.1rem;
@@ -69,10 +69,14 @@
             border-radius: 8px;
             border: 1px solid #ddd;
         }
+
+        @media (max-width: 600px) {
+            #map { height: 70vh; }
+            .container { padding: 1rem; }
+        }
     </style>
 </head>
 <body>
-
     <div class="container">
         <h1>Shareable WebRTC Map</h1>
 
@@ -83,181 +87,417 @@
             <button id="joinRoomBtn" onclick="joinSession()">Join Room</button>
         </div>
 
-        <!-- The map is now visible by default -->
         <div id="mapArea">
             <div id="map"></div>
         </div>
-        
-        <p id="gameStatus">Click the map to place your marker.</p>
+
+        <p id="gameStatus">Detecting location or click the map to place your marker.</p>
     </div>
 
-    <!-- Dependencies -->
+    <!-- SignalR (for signaling) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
-    
+
     <script>
-    class SharedMap {
-        constructor() {
-            this.roomId = '';
-            this.userName = '';
-            this.isHost = false;
-            this.connected = false;
-            this.myUserId = Math.floor(Math.random() * 10000) + 1;
-            this.opponentUserId = null;
+        class SharedMap {
+            constructor() {
+                this.roomId = '';
+                this.userName = '';
+                this.isHost = false;
+                this.connected = false;
+                this.myUserId = Math.floor(Math.random() * 10000) + 1; // simple id
+                this.opponentUserId = null;
 
-            // --- Map-specific State ---
-            this.map = null;
-            this.myMarker = null;
-            this.peerMarkers = {}; // Store opponent markers by their user ID
+                // Map state
+                this.map = null;
+                this.myMarker = null;
+                this.peerMarkers = {}; // keyed by userId
 
-            // --- WebRTC and SignalR Properties ---
-            this.peerConnection = null;
-            this.dataChannel = null;
-            this.signalRConnection = null;
+                // WebRTC / SignalR
+                this.peerConnection = null;
+                this.dataChannel = null;
+                this.signalRConnection = null;
 
-            // Initialize the map
-            this.initializeMapSession();
-        }
+                // Initialize map on creation
+                this.initializeMapSession();
+            }
 
-        // ===================================================================
-        // MAP LOGIC
-        // ===================================================================
-        initializeMapSession() {
-            if (this.map) return; // Only initialize once
-            
-            this.updateStatus('Detecting location or click the map to place your marker.');
+            // ---------------------------
+            // MAP LOGIC
+            // ---------------------------
+            initializeMapSession() {
+                if (this.map) return;
 
-            // Initialize MapLibre Map
-            this.map = new maplibregl.Map({
-                container: 'map',
-                style: 'https://tiles.openfreemap.org/styles/liberty',
-                center: [-0.09, 51.505], // fallback (London)
-                zoom: 12
-            });
+                this.updateStatus('Detecting location or click the map to place your marker.');
 
-            // --- NEW FEATURE: Try to detect user’s location ---
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    const { latitude, longitude } = pos.coords;
-                    this.placeOrMoveMyMarker(longitude, latitude);
-                    this.map.setCenter([longitude, latitude]);
-                    this.map.setZoom(14);
-                }, () => {
-                    this.updateStatus('Could not detect location. Click the map to place your marker.');
+                this.map = new maplibregl.Map({
+                    container: 'map',
+                    style: 'https://tiles.openfreemap.org/styles/liberty',
+                    center: [-0.09, 51.505], // fallback center (London)
+                    zoom: 12
+                });
+
+                // Try geolocation first
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition((pos) => {
+                        const { latitude, longitude } = pos.coords;
+                        this.placeOrMoveMyMarker(longitude, latitude);
+                        this.map.setCenter([longitude, latitude]);
+                        this.map.setZoom(14);
+                        this.updateStatus('Location detected. Click map to move marker or create/join a room.');
+                    }, (err) => {
+                        console.warn('Geolocation failed:', err);
+                        this.updateStatus('Could not detect location. Click the map to place your marker.');
+                    }, { enableHighAccuracy: true, timeout: 8000 });
+                } else {
+                    this.updateStatus('Geolocation not available. Click the map to place your marker.');
+                }
+
+                // Place/move on click
+                this.map.on('click', (e) => {
+                    const { lng, lat } = e.lngLat;
+                    this.placeOrMoveMyMarker(lng, lat);
                 });
             }
 
-            // Handle manual map clicks
-            this.map.on('click', (e) => {
-                const { lng, lat } = e.lngLat;
-                this.placeOrMoveMyMarker(lng, lat);
-            });
-        }
+            placeOrMoveMyMarker(lng, lat) {
+                // ensure userName is shown (defaults to 'You' until set)
+                const label = (this.userName && this.userName.length) ? this.userName : 'You';
 
-        placeOrMoveMyMarker(lng, lat) {
-            if (!this.myMarker) {
-                this.myMarker = new maplibregl.Marker()
-                    .setLngLat([lng, lat])
-                    .setPopup(new maplibregl.Popup().setText(`${this.userName || 'You'}`))
-                    .addTo(this.map);
-                this.myMarker.togglePopup();
-            } else {
-                this.myMarker.setLngLat([lng, lat]);
-            }
+                if (!this.myMarker) {
+                    this.myMarker = new maplibregl.Marker()
+                        .setLngLat([lng, lat])
+                        .setPopup(new maplibregl.Popup({ offset: 12 }).setText(label))
+                        .addTo(this.map);
+                    this.myMarker.togglePopup();
+                } else {
+                    this.myMarker.setLngLat([lng, lat]);
+                    // update popup label if userName changed
+                    const existingPopup = this.myMarker.getPopup();
+                    if (existingPopup) existingPopup.setText(label);
+                }
 
-            if(this.connected) {
-                this.sendMapData('marker-update', { lng, lat, userId: this.myUserId, userName: this.userName });
-            }
-        }
-
-        // ===================================================================
-        // NETWORKING & COMMUNICATION LOGIC
-        // ===================================================================
-
-        // ... (unchanged code up to setupDataChannel)
-
-        setupDataChannel(channel) {
-            channel.onopen = () => {
-                this.connected = true;
-                if (this.myMarker) {
-                    const { lng, lat } = this.myMarker.getLngLat();
+                // Send new position immediately if connected
+                if (this.connected) {
                     this.sendMapData('marker-update', { lng, lat, userId: this.myUserId, userName: this.userName });
                 }
-            };
-            channel.onmessage = (event) => this.handleMapMessage(JSON.parse(event.data));
-            channel.onerror = (error) => console.error('Data channel error:', error);
-        }
+            }
 
-        sendMapData(type, data) {
-            if (this.dataChannel && this.dataChannel.readyState === 'open') {
-                this.dataChannel.send(JSON.stringify({ type, data }));
+            // ---------------------------
+            // SIGNALING (SignalR) & WEBRTC
+            // ---------------------------
+            async connectToSignaling() {
+                if (this.signalRConnection) return; // already connected
+
+                try {
+                    const hubUrl = `https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=shared_map_temp`;
+                    this.signalRConnection = new signalR.HubConnectionBuilder()
+                        .withUrl(hubUrl)
+                        .withAutomaticReconnect()
+                        .build();
+
+                    // Peer joined — original server event name assumed
+                    this.signalRConnection.on("WebRTCPeerJoined", (userName, userId) => {
+                        // ignore self
+                        if (userId !== this.myUserId && !this.connected) {
+                            this.opponentUserId = userId;
+                            if (this.isHost) {
+                                this.updateStatus(`${userName} joined. Creating offer...`);
+                                this.createOffer().catch(console.error);
+                            } else {
+                                this.updateStatus(`${userName} joined. Waiting for offer...`);
+                            }
+                        }
+                    });
+
+                    // Received signaling message
+                    this.signalRConnection.on("WebRTCSignalingMessageReceived", (fromUserId, messageType, messageData) => {
+                        if (fromUserId !== this.myUserId) {
+                            this.opponentUserId = fromUserId;
+                            this.handleSignalingMessage(messageType, messageData).catch(console.error);
+                        }
+                    });
+
+                    // Peer left
+                    this.signalRConnection.on("WebRTCPeerLeft", (userId) => {
+                        if (userId === this.opponentUserId) {
+                            this.updateStatus('Peer disconnected.');
+                            if (this.peerMarkers[userId]) {
+                                this.peerMarkers[userId].remove();
+                                delete this.peerMarkers[userId];
+                            }
+                            // reset peer state so room can be reused (optional)
+                            this.connected = false;
+                            this.opponentUserId = null;
+                            // Close existing peer connection
+                            if (this.peerConnection) {
+                                try { this.peerConnection.close(); } catch(e) {}
+                                this.peerConnection = null;
+                                this.dataChannel = null;
+                            }
+                        }
+                    });
+
+                    await this.signalRConnection.start();
+                    this.updateStatus('Connected to signaling server. Ready to create/join a room.');
+                } catch (error) {
+                    console.error('SignalR setup failed:', error);
+                    this.updateStatus('Failed to connect to signaling server.');
+                }
+            }
+
+            async sendSignalingMessage(messageType, messageData) {
+                if (!this.signalRConnection || this.signalRConnection.state !== signalR.HubConnectionState.Connected) {
+                    console.warn('SignalR not connected - cannot send signaling message');
+                    return;
+                }
+                if (!this.opponentUserId) {
+                    console.warn('No opponentUserId known - cannot send signaling message');
+                    return;
+                }
+                try {
+                    // server expects (targetUserId, messageType, messageData)
+                    await this.signalRConnection.invoke("SendWebRTCSignalingMessage", this.opponentUserId.toString(), messageType, messageData);
+                } catch (err) {
+                    console.error('Failed to send signaling message:', err);
+                }
+            }
+
+            async handleSignalingMessage(messageType, messageData) {
+                switch (messageType) {
+                    case 'offer':
+                        await this.handleOffer(messageData);
+                        break;
+                    case 'answer':
+                        await this.handleAnswer(messageData);
+                        break;
+                    case 'ice-candidate':
+                        await this.handleIceCandidate(messageData);
+                        break;
+                    default:
+                        console.warn('Unknown signaling message type:', messageType);
+                }
+            }
+
+            async createPeerConnection() {
+                // create RTCPeerConnection if not exists
+                if (this.peerConnection) return;
+
+                this.peerConnection = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
+
+                // If host, create data channel proactively
+                if (this.isHost) {
+                    this.dataChannel = this.peerConnection.createDataChannel('mapChannel', { ordered: true });
+                    this.setupDataChannel(this.dataChannel);
+                }
+
+                // When the remote creates a data channel
+                this.peerConnection.ondatachannel = (event) => {
+                    this.dataChannel = event.channel;
+                    this.setupDataChannel(this.dataChannel);
+                };
+
+                // ICE candidate gathering
+                this.peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        // send candidate to the other peer via signaling server
+                        this.sendSignalingMessage('ice-candidate', event.candidate).catch(console.error);
+                    }
+                };
+
+                // connection state changes
+                this.peerConnection.onconnectionstatechange = () => {
+                    const state = this.peerConnection ? this.peerConnection.connectionState : 'closed';
+                    console.log('PeerConnection state:', state);
+                    if (state === 'connected') {
+                        this.connected = true;
+                        this.updateStatus('Peer connected! Location sharing is live.');
+                        // ensure we send our current marker if present
+                        if (this.myMarker) {
+                            const { lng, lat } = this.myMarker.getLngLat();
+                            this.sendMapData('marker-update', { lng, lat, userId: this.myUserId, userName: this.userName });
+                        }
+                    } else if (state === 'disconnected' || state === 'failed') {
+                        this.connected = false;
+                        this.updateStatus('Peer disconnected or connection failed.');
+                    }
+                };
+            }
+
+            setupDataChannel(channel) {
+                channel.onopen = () => {
+                    console.log('Data channel open');
+                    this.connected = true;
+                    // send existing marker position + name immediately
+                    if (this.myMarker) {
+                        const { lng, lat } = this.myMarker.getLngLat();
+                        this.sendMapData('marker-update', { lng, lat, userId: this.myUserId, userName: this.userName });
+                    } else {
+                        this.updateStatus('Connected. Place your marker to share location.');
+                    }
+                };
+
+                channel.onmessage = (event) => {
+                    try {
+                        const parsed = JSON.parse(event.data);
+                        this.handleMapMessage(parsed);
+                    } catch (err) {
+                        console.error('Failed to parse dataChannel message:', err, event.data);
+                    }
+                };
+
+                channel.onerror = (err) => {
+                    console.error('Data channel error:', err);
+                };
+
+                channel.onclose = () => {
+                    console.log('Data channel closed');
+                    this.connected = false;
+                };
+            }
+
+            async createOffer() {
+                await this.createPeerConnection();
+                const offer = await this.peerConnection.createOffer();
+                await this.peerConnection.setLocalDescription(offer);
+                await this.sendSignalingMessage('offer', offer);
+            }
+
+            async handleOffer(offer) {
+                await this.createPeerConnection();
+                await this.peerConnection.setRemoteDescription(offer);
+                const answer = await this.peerConnection.createAnswer();
+                await this.peerConnection.setLocalDescription(answer);
+                await this.sendSignalingMessage('answer', answer);
+            }
+
+            async handleAnswer(answer) {
+                if (!this.peerConnection) {
+                    console.warn('Received answer but no peerConnection exists yet');
+                    return;
+                }
+                await this.peerConnection.setRemoteDescription(answer);
+            }
+
+            async handleIceCandidate(candidate) {
+                if (!this.peerConnection) {
+                    console.warn('Received ICE candidate but no peerConnection exists yet');
+                    return;
+                }
+                try {
+                    await this.peerConnection.addIceCandidate(candidate);
+                } catch (err) {
+                    console.error('Error adding received ICE candidate', err);
+                }
+            }
+
+            // ---------------------------
+            // MAP MESSAGE HANDLING
+            // ---------------------------
+            sendMapData(type, data) {
+                if (this.dataChannel && this.dataChannel.readyState === 'open') {
+                    try {
+                        this.dataChannel.send(JSON.stringify({ type, data }));
+                    } catch (err) {
+                        console.error('Failed to send data over dataChannel', err);
+                    }
+                } else {
+                    console.warn('Data channel not open yet; cannot send map data');
+                }
+            }
+
+            handleMapMessage(message) {
+                if (!message || !message.type) return;
+                switch (message.type) {
+                    case 'marker-update':
+                        this.handleMarkerUpdate(message.data);
+                        break;
+                    default:
+                        console.warn('Unknown map message type:', message.type);
+                }
+            }
+
+            handleMarkerUpdate(data) {
+                if (!data || typeof data.userId === 'undefined') return;
+                const { lng, lat, userId, userName } = data;
+
+                // ignore our own updates if echoed back
+                if (userId === this.myUserId) return;
+
+                if (!this.peerMarkers[userId]) {
+                    // create a marker for this peer
+                    this.peerMarkers[userId] = new maplibregl.Marker({ color: "#d9534f" })
+                        .setLngLat([lng, lat])
+                        .setPopup(new maplibregl.Popup({ offset: 12 }).setText(userName || `Peer ${userId}`))
+                        .addTo(this.map);
+                } else {
+                    // update existing marker
+                    this.peerMarkers[userId].setLngLat([lng, lat]);
+                    // update popup text if we received a new name
+                    const popup = this.peerMarkers[userId].getPopup();
+                    if (popup && userName) popup.setText(userName);
+                }
+            }
+
+            // ---------------------------
+            // UI HELPERS
+            // ---------------------------
+            updateStatus(message) {
+                const el = document.getElementById('gameStatus');
+                if (el) el.textContent = message;
+                console.log('STATUS:', message);
             }
         }
 
-        handleMapMessage(message) {
-            switch (message.type) {
-                case 'marker-update':
-                    this.handleMarkerUpdate(message.data);
-                    break;
+        // --- Create the shared map instance ---
+        const sharedMap = new SharedMap();
+
+        // --- UI actions: create/join session ---
+        async function createSession() {
+            const roomId = document.getElementById('roomIdInput').value.trim();
+            const userName = document.getElementById('userNameInput').value.trim();
+            if (!roomId || !userName) { alert('Please enter Room ID and Name'); return; }
+
+            sharedMap.roomId = roomId;
+            sharedMap.userName = userName;
+            sharedMap.isHost = true;
+
+            await sharedMap.connectToSignaling();
+            try {
+                // server method to join the "room" - adjust if your server API differs
+                await sharedMap.signalRConnection.invoke("JoinWebRTCSession", `map_${roomId}`, sharedMap.myUserId);
+                sharedMap.updateStatus(`Room "${roomId}" created. Share the ID!`);
+            } catch (err) {
+                console.error('JoinWebRTCSession failed:', err);
+                sharedMap.updateStatus('Failed to join room on server.');
             }
+
+            document.getElementById('createRoomBtn').disabled = true;
+            document.getElementById('joinRoomBtn').disabled = true;
         }
 
-        handleMarkerUpdate(data) {
-            const { lng, lat, userId, userName } = data;
-            let peerMarker = this.peerMarkers[userId];
+        async function joinSession() {
+            const roomId = document.getElementById('roomIdInput').value.trim();
+            const userName = document.getElementById('userNameInput').value.trim();
+            if (!roomId || !userName) { alert('Please enter Room ID and Name'); return; }
 
-            if (!peerMarker) {
-                this.peerMarkers[userId] = new maplibregl.Marker({ color: "#d9534f" })
-                    .setLngLat([lng, lat])
-                    .setPopup(new maplibregl.Popup().setText(userName || `Peer ${userId}`))
-                    .addTo(this.map);
-                this.peerMarkers[userId].togglePopup();
-            } else {
-                peerMarker.setLngLat([lng, lat]);
+            sharedMap.roomId = roomId;
+            sharedMap.userName = userName;
+            sharedMap.isHost = false;
+
+            await sharedMap.connectToSignaling();
+            try {
+                await sharedMap.signalRConnection.invoke("JoinWebRTCSession", `map_${roomId}`, sharedMap.myUserId);
+                sharedMap.updateStatus(`Joining room "${roomId}"...`);
+            } catch (err) {
+                console.error('JoinWebRTCSession failed:', err);
+                sharedMap.updateStatus('Failed to join room on server.');
             }
+
+            document.getElementById('createRoomBtn').disabled = true;
+            document.getElementById('joinRoomBtn').disabled = true;
         }
-
-        updateStatus(message) {
-            document.getElementById('gameStatus').textContent = message;
-        }
-    }
-    
-    // --- Global Instance and UI Functions ---
-    const sharedMap = new SharedMap();
-
-    async function createSession() {
-        const roomId = document.getElementById('roomIdInput').value.trim();
-        const userName = document.getElementById('userNameInput').value.trim();
-        if (!roomId || !userName) { alert('Please enter Room ID and Name'); return; }
-
-        sharedMap.roomId = roomId;
-        sharedMap.userName = userName;
-        sharedMap.isHost = true;
-        
-        await sharedMap.connectToSignaling();
-        await sharedMap.signalRConnection.invoke("JoinWebRTCSession", `map_${roomId}`, sharedMap.myUserId);
-        sharedMap.updateStatus(`Room "${roomId}" created. Share the ID!`);
-
-        document.getElementById('createRoomBtn').disabled = true;
-        document.getElementById('joinRoomBtn').disabled = true;
-    }
-
-    async function joinSession() {
-        const roomId = document.getElementById('roomIdInput').value.trim();
-        const userName = document.getElementById('userNameInput').value.trim();
-        if (!roomId || !userName) { alert('Please enter Room ID and Name'); return; }
-
-        sharedMap.roomId = roomId;
-        sharedMap.userName = userName;
-        sharedMap.isHost = false;
-
-        await sharedMap.connectToSignaling();
-        await sharedMap.signalRConnection.invoke("JoinWebRTCSession", `map_${roomId}`, sharedMap.myUserId);
-        sharedMap.updateStatus(`Joining room "${roomId}"...`);
-        
-        document.getElementById('createRoomBtn').disabled = true;
-        document.getElementById('joinRoomBtn').disabled = true;
-    }
-</script>
-
+    </script>
 </body>
 </html>
