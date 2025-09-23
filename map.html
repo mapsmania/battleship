@@ -29,11 +29,20 @@
             width: 90%;
             max-width: 800px;
         }
-        h1 { color: #00796b; }
+        h1 { color: #00796b; margin-bottom: 1rem; }
         .hidden { display: none; }
+
+        /* Updated styles for the connection panel */
+        #connectionPanel {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 1rem;
+        }
         #connectionPanel input, #connectionPanel button {
             padding: 10px;
-            margin: 5px;
             border: 1px solid #ddd;
             border-radius: 8px;
             font-size: 1rem;
@@ -45,6 +54,7 @@
             border: none;
         }
         #connectionPanel button:disabled { background-color: #9e9e9e; }
+        
         #gameStatus {
             margin-top: 1.5rem;
             font-size: 1.1rem;
@@ -52,11 +62,10 @@
             min-height: 25px;
             color: #5f6368;
         }
-        /* Crucial for MapLibre: Map must have a defined height */
+        /* Map container styles */
         #map {
             height: 500px;
             width: 100%;
-            margin-top: 20px;
             border-radius: 8px;
             border: 1px solid #ddd;
         }
@@ -74,11 +83,12 @@
             <button id="joinRoomBtn" onclick="joinSession()">Join Room</button>
         </div>
 
-        <div id="mapArea" class="hidden">
+        <!-- The map is now visible by default -->
+        <div id="mapArea">
             <div id="map"></div>
         </div>
         
-        <p id="gameStatus">Enter a Room ID and name to begin.</p>
+        <p id="gameStatus">Click the map to place your marker.</p>
     </div>
 
     <!-- Dependencies -->
@@ -99,19 +109,58 @@
                 this.myMarker = null;
                 this.peerMarkers = {}; // Store opponent markers by their user ID
 
-                // --- WebRTC and SignalR Properties (Unchanged) ---
+                // --- WebRTC and SignalR Properties ---
                 this.peerConnection = null;
                 this.dataChannel = null;
                 this.signalRConnection = null;
 
-                this.setupSignalR();
+                // Initialize the map as soon as the object is created
+                this.initializeMapSession();
             }
 
             // ===================================================================
-            // NETWORKING & COMMUNICATION LOGIC (This is the reusable part)
+            // MAP LOGIC (Now runs on page load)
+            // ===================================================================
+            
+            initializeMapSession() {
+                if (this.map) return; // Only initialize once
+                
+                this.updateStatus('Click the map to place a marker, then create or join a room.');
+
+                // Initialize MapLibre Map
+                this.map = new maplibregl.Map({
+                    container: 'map',
+                    style: 'https://tiles.openfreemap.org/styles/liberty',
+                    center: [-0.09, 51.505], // London
+                    zoom: 12
+                });
+
+                // Handle map clicks
+                this.map.on('click', (e) => {
+                    const { lng, lat } = e.lngLat;
+                    if (!this.myMarker) {
+                        this.myMarker = new maplibregl.Marker()
+                            .setLngLat([lng, lat])
+                            .setPopup(new maplibregl.Popup().setText('This is you!'))
+                            .addTo(this.map);
+                        this.myMarker.togglePopup();
+                    } else {
+                        this.myMarker.setLngLat([lng, lat]);
+                    }
+                    // If already connected, send update immediately.
+                    if(this.connected) {
+                        this.sendMapData('marker-update', { lng, lat, userId: this.myUserId });
+                    }
+                });
+            }
+
+            // ===================================================================
+            // NETWORKING & COMMUNICATION LOGIC (Mostly unchanged)
             // ===================================================================
 
-            async setupSignalR() {
+            async connectToSignaling() {
+                if (this.signalRConnection) return; // Connect only once
+
                 try {
                     const hubUrl = `https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=shared_map_temp`;
                     this.signalRConnection = new signalR.HubConnectionBuilder()
@@ -138,7 +187,6 @@
                         if (userId === this.opponentUserId) {
                             this.updateStatus('Peer disconnected.');
                             if (this.peerMarkers[userId]) {
-                                // Use MapLibre's remove method
                                 this.peerMarkers[userId].remove();
                                 delete this.peerMarkers[userId];
                             }
@@ -183,9 +231,9 @@
                     if (event.candidate) this.sendSignalingMessage('ice-candidate', event.candidate);
                 };
                 this.peerConnection.onconnectionstatechange = () => {
-                    if (this.peerConnection.connectionState === 'connected') {
+                     if (this.peerConnection.connectionState === 'connected') {
                         this.connected = true;
-                        this.initializeMapSession();
+                        this.updateStatus('Peer connected! Location sharing is live.');
                     }
                 };
             }
@@ -193,7 +241,11 @@
             setupDataChannel(channel) {
                 channel.onopen = () => {
                     this.connected = true;
-                    this.initializeMapSession();
+                    // *** KEY CHANGE ***: When channel opens, send existing marker position
+                    if (this.myMarker) {
+                        const { lng, lat } = this.myMarker.getLngLat();
+                        this.sendMapData('marker-update', { lng, lat, userId: this.myUserId });
+                    }
                 };
                 channel.onmessage = (event) => this.handleMapMessage(JSON.parse(event.data));
                 channel.onerror = (error) => console.error('Data channel error:', error);
@@ -222,42 +274,6 @@
                     this.dataChannel.send(JSON.stringify({ type, data }));
                 }
             }
-            
-            // ===================================================================
-            // MAP LOGIC (Updated for MapLibre)
-            // ===================================================================
-
-            initializeMapSession() {
-                if (this.map) return; // Only initialize once
-                
-                document.getElementById('connectionPanel').classList.add('hidden');
-                document.getElementById('mapArea').classList.remove('hidden');
-                this.updateStatus('Connected! Click on the map to share your location.');
-
-                // Initialize MapLibre Map
-                this.map = new maplibregl.Map({
-                    container: 'map',
-                    style: 'https://tiles.openfreemap.org/styles/liberty',
-                    center: [-0.09, 51.505], // MapLibre uses [lng, lat] format (London)
-                    zoom: 12
-                });
-
-                // Handle map clicks
-                this.map.on('click', (e) => {
-                    const { lng, lat } = e.lngLat;
-                    if (!this.myMarker) {
-                        this.myMarker = new maplibregl.Marker()
-                            .setLngLat([lng, lat])
-                            .setPopup(new maplibregl.Popup().setText('This is you!'))
-                            .addTo(this.map);
-                        this.myMarker.togglePopup(); // Open the popup initially
-                    } else {
-                        this.myMarker.setLngLat([lng, lat]);
-                    }
-                    // Send my marker position to peers
-                    this.sendMapData('marker-update', { lng, lat, userId: this.myUserId });
-                });
-            }
 
             handleMapMessage(message) {
                 switch (message.type) {
@@ -272,13 +288,11 @@
                 const peerMarker = this.peerMarkers[userId];
 
                 if (!peerMarker) {
-                    // Create a new marker for this peer with a different color
                     this.peerMarkers[userId] = new maplibregl.Marker({ color: "#d9534f" })
                         .setLngLat([lng, lat])
-                        .setPopup(new maplibregl.Popup().setText(`Peer ${this.opponentUserId}`))
+                        .setPopup(new maplibregl.Popup().setText(`Peer ${this.opponentUserId || 'User'}`))
                         .addTo(this.map);
                 } else {
-                    // Update existing marker's position
                     peerMarker.setLngLat([lng, lat]);
                 }
             }
@@ -289,25 +303,22 @@
         }
         
         // --- Global Instance and UI Functions ---
-        let sharedMap = null;
+        // Create a single instance on page load
+        const sharedMap = new SharedMap();
 
         async function createSession() {
             const roomId = document.getElementById('roomIdInput').value.trim();
             const userName = document.getElementById('userNameInput').value.trim();
             if (!roomId || !userName) { alert('Please enter Room ID and Name'); return; }
 
-            sharedMap = new SharedMap();
             sharedMap.roomId = roomId;
             sharedMap.userName = userName;
             sharedMap.isHost = true;
+            
+            await sharedMap.connectToSignaling();
+            await sharedMap.signalRConnection.invoke("JoinWebRTCSession", `map_${roomId}`, sharedMap.myUserId);
+            sharedMap.updateStatus(`Room "${roomId}" created. Share the ID!`);
 
-            const wait = async () => {
-                if (sharedMap.signalRConnection && sharedMap.signalRConnection.state === signalR.HubConnectionState.Connected) {
-                    await sharedMap.signalRConnection.invoke("JoinWebRTCSession", `map_${roomId}`, sharedMap.myUserId);
-                    sharedMap.updateStatus(`Room "${roomId}" created. Share the ID!`);
-                } else { setTimeout(wait, 100); }
-            };
-            await wait();
             document.getElementById('createRoomBtn').disabled = true;
             document.getElementById('joinRoomBtn').disabled = true;
         }
@@ -317,18 +328,14 @@
             const userName = document.getElementById('userNameInput').value.trim();
             if (!roomId || !userName) { alert('Please enter Room ID and Name'); return; }
 
-            sharedMap = new SharedMap();
             sharedMap.roomId = roomId;
             sharedMap.userName = userName;
             sharedMap.isHost = false;
 
-            const wait = async () => {
-                if (sharedMap.signalRConnection && sharedMap.signalRConnection.state === signalR.HubConnectionState.Connected) {
-                    await sharedMap.signalRConnection.invoke("JoinWebRTCSession", `map_${roomId}`, sharedMap.myUserId);
-                    sharedMap.updateStatus(`Joining room "${roomId}"...`);
-                } else { setTimeout(wait, 100); }
-            };
-            await wait();
+            await sharedMap.connectToSignaling();
+            await sharedMap.signalRConnection.invoke("JoinWebRTCSession", `map_${roomId}`, sharedMap.myUserId);
+            sharedMap.updateStatus(`Joining room "${roomId}"...`);
+            
             document.getElementById('createRoomBtn').disabled = true;
             document.getElementById('joinRoomBtn').disabled = true;
         }
