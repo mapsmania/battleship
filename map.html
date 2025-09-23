@@ -418,7 +418,7 @@
                 }
             }
 
-            handleMarkerUpdate(data) {
+    handleMarkerUpdate(data) {
     if (!data || typeof data.userId === 'undefined') return;
     const { lng, lat, userId, userName } = data;
 
@@ -433,8 +433,13 @@
             .setPopup(popup)
             .addTo(this.map);
 
-        // 👇 auto-open the popup right after adding
+        // 👇 Auto-open the peer's popup
         this.peerMarkers[userId].togglePopup();
+
+        // 👇 Also re-open our own popup if we have a marker
+        if (this.myMarker) {
+            this.myMarker.togglePopup();
+        }
 
     } else {
         // update existing marker
