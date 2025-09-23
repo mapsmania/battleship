@@ -1,8 +1,6 @@
-﻿// Battleship Game Logic with proper SignalR + WebRTC
-class BattleshipGame
-{
-    constructor()
-    {
+// Noughts and Crosses (Tic-Tac-Toe) Game Logic with SignalR + WebRTC
+class NoughtsAndCrossesGame {
+    constructor() {
         this.gameId = '';
         this.playerName = '';
         this.isHost = false;
@@ -12,134 +10,92 @@ class BattleshipGame
         this.myUserId = Math.floor(Math.random() * 10000) + 1; // Random user ID
         this.opponentUserId = null;
 
-        // Game state
-        this.playerGrid = Array(10).fill().map(() => Array(10).fill(0));
-        this.enemyGrid = Array(10).fill().map(() => Array(10).fill(0));
-        this.playerShips = [];
-        this.enemyShips = [];
+        // --- Game State (Changed for Noughts and Crosses) ---
+        this.board = Array(9).fill(null); // 3x3 board
+        this.myMark = null; // 'X' or 'O'
+        this.gameOver = false;
 
-        // Ship types: [length, count]
-        this.shipTypes = [
-            [5, 1], // Carrier
-            [4, 1], // Battleship  
-            [3, 2], // Cruiser
-            [2, 1]  // Destroyer
-        ];
-
-        // WebRTC connection
+        // --- WebRTC and SignalR Properties (Unchanged) ---
         this.peerConnection = null;
         this.dataChannel = null;
-
-        // SignalR connection
         this.signalRConnection = null;
 
         this.setupSignalR();
     }
 
-    // Proper SignalR setup using your TeamHub
-    async setupSignalR()
-    {
-        try
-        {
+    // ===================================================================
+    // NETWORKING & COMMUNICATION LOGIC (This section is mostly unchanged)
+    // ===================================================================
+
+    async setupSignalR() {
+        try {
             console.log('Setting up SignalR connection...');
-
-            // Connect to your TeamHub with proper SignalR client
-            // const hubUrl = `https://localhost:7209/teamhub?userid=${this.myUserId}&teamid=battleship_temp`;
-            // or ....
-
-            const hubUrl = `https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=battleship_temp`;
+            const hubUrl = `https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=noughts_temp`;
 
             this.signalRConnection = new signalR.HubConnectionBuilder()
                 .withUrl(hubUrl)
                 .withAutomaticReconnect()
                 .build();
 
-            // Set up SignalR event handlers for WebRTC
-            this.signalRConnection.on("WebRTCPeerJoined", (userName, userId) =>
-            {
+            this.signalRConnection.on("WebRTCPeerJoined", (userName, userId) => {
                 console.log('WebRTC Peer joined:', userName, userId);
-                if (userId !== this.myUserId && !this.connected)
-                {
+                if (userId !== this.myUserId && !this.connected) {
                     this.opponentUserId = userId;
-                    if (this.isHost)
-                    {
+                    if (this.isHost) {
                         this.updateStatus(`${userName} joined. Establishing connection...`);
                         this.createOffer();
                     }
                 }
             });
 
-            this.signalRConnection.on("WebRTCSignalingMessageReceived", (fromUserId, messageType, messageData) =>
-            {
+            this.signalRConnection.on("WebRTCSignalingMessageReceived", (fromUserId, messageType, messageData) => {
                 console.log('WebRTC signaling received:', messageType, 'from', fromUserId);
-                if (fromUserId !== this.myUserId)
-                {
+                if (fromUserId !== this.myUserId) {
                     this.opponentUserId = fromUserId;
                     this.handleSignalingMessage(messageType, messageData);
                 }
             });
 
-            this.signalRConnection.on("WebRTCPeerLeft", (userId) =>
-            {
+            this.signalRConnection.on("WebRTCPeerLeft", (userId) => {
                 console.log('WebRTC Peer left:', userId);
-                if (userId === this.opponentUserId)
-                {
+                if (userId === this.opponentUserId) {
                     this.updateStatus('Opponent disconnected. Game ended.');
+                    this.gameOver = true;
                 }
             });
 
-            // Start the SignalR connection
             await this.signalRConnection.start();
             console.log('SignalR connected successfully');
-            this.updateStatus('Connected to server. Ready to create or join game.');
+            this.updateStatus('Connected. Ready to create or join a game.');
 
-        } catch (error)
-        {
+        } catch (error) {
             console.error('SignalR setup failed:', error);
-            this.updateStatus('Failed to connect to server. Please refresh and try again.');
+            this.updateStatus('Failed to connect to server. Please refresh.');
         }
     }
 
-    async sendSignalingMessage(messageType, messageData)
-    {
+    async sendSignalingMessage(messageType, messageData) {
         if (this.signalRConnection &&
             this.signalRConnection.state === signalR.HubConnectionState.Connected &&
-            this.opponentUserId)
-        {
-            try
-            {
-                console.log(`Sending ${messageType} to user ${this.opponentUserId}`);
+            this.opponentUserId) {
+            try {
                 await this.signalRConnection.invoke("SendWebRTCSignalingMessage",
                     this.opponentUserId.toString(), messageType, messageData);
-            } catch (error)
-            {
+            } catch (error) {
                 console.error('Error sending signaling message:', error);
             }
         }
     }
 
-    async handleSignalingMessage(messageType, messageData)
-    {
-        console.log('Handling signaling message:', messageType);
-
-        switch (messageType)
-        {
-            case 'offer':
-                await this.handleOffer(messageData);
-                break;
-
-            case 'answer':
-                await this.handleAnswer(messageData);
-                break;
-
-            case 'ice-candidate':
-                await this.handleIceCandidate(messageData);
-                break;
+    async handleSignalingMessage(messageType, messageData) {
+        switch (messageType) {
+            case 'offer': await this.handleOffer(messageData); break;
+            case 'answer': await this.handleAnswer(messageData); break;
+            case 'ice-candidate': await this.handleIceCandidate(messageData); break;
         }
     }
 
-    async createPeerConnection()
-    {
+    async createPeerConnection() {
         this.peerConnection = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -147,78 +103,58 @@ class BattleshipGame
             ]
         });
 
-        // Create data channel for game messages
-        if (this.isHost)
-        {
-            this.dataChannel = this.peerConnection.createDataChannel('battleship', {
-                ordered: true
-            });
+        if (this.isHost) {
+            this.dataChannel = this.peerConnection.createDataChannel('gameChannel', { ordered: true });
             this.setupDataChannel(this.dataChannel);
         }
 
-        // Handle incoming data channel
-        this.peerConnection.ondatachannel = (event) =>
-        {
+        this.peerConnection.ondatachannel = (event) => {
             this.dataChannel = event.channel;
             this.setupDataChannel(this.dataChannel);
         };
 
-        // Handle ICE candidates
-        this.peerConnection.onicecandidate = (event) =>
-        {
-            if (event.candidate)
-            {
+        this.peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
                 this.sendSignalingMessage('ice-candidate', event.candidate);
             }
         };
 
-        // Connection state monitoring
-        this.peerConnection.onconnectionstatechange = () =>
-        {
+        this.peerConnection.onconnectionstatechange = () => {
             console.log('Connection state:', this.peerConnection.connectionState);
-            if (this.peerConnection.connectionState === 'connected')
-            {
+            if (this.peerConnection.connectionState === 'connected') {
                 this.connected = true;
-                this.updateStatus('Connected! Setting up your fleet...');
-                this.initializeGame();
+                if (!this.gameStarted) {
+                     this.initializeGame();
+                }
             }
         };
     }
 
-    setupDataChannel(channel)
-    {
-        channel.onopen = () =>
-        {
+    setupDataChannel(channel) {
+        channel.onopen = () => {
             console.log('Data channel opened');
             this.connected = true;
-            if (!this.gameStarted)
-            {
+            if (!this.gameStarted) {
                 this.initializeGame();
             }
         };
-
-        channel.onmessage = (event) =>
-        {
+        channel.onmessage = (event) => {
             this.handleGameMessage(JSON.parse(event.data));
         };
-
-        channel.onerror = (error) =>
-        {
+        channel.onerror = (error) => {
             console.error('Data channel error:', error);
-            this.updateStatus('Connection error. Please refresh and try again.');
+            this.updateStatus('Connection error.');
         };
     }
 
-    async createOffer()
-    {
+    async createOffer() {
         await this.createPeerConnection();
         const offer = await this.peerConnection.createOffer();
         await this.peerConnection.setLocalDescription(offer);
         await this.sendSignalingMessage('offer', offer);
     }
 
-    async handleOffer(offer)
-    {
+    async handleOffer(offer) {
         await this.createPeerConnection();
         await this.peerConnection.setRemoteDescription(offer);
         const answer = await this.peerConnection.createAnswer();
@@ -226,328 +162,167 @@ class BattleshipGame
         await this.sendSignalingMessage('answer', answer);
     }
 
-    async handleAnswer(answer)
-    {
+    async handleAnswer(answer) {
         await this.peerConnection.setRemoteDescription(answer);
     }
 
-    async handleIceCandidate(candidate)
-    {
-        if (this.peerConnection)
-        {
+    async handleIceCandidate(candidate) {
+        if (this.peerConnection) {
             await this.peerConnection.addIceCandidate(candidate);
         }
     }
 
-    sendGameMessage(type, data)
-    {
-        if (this.dataChannel && this.dataChannel.readyState === 'open')
-        {
+    sendGameMessage(type, data) {
+        if (this.dataChannel && this.dataChannel.readyState === 'open') {
             this.dataChannel.send(JSON.stringify({ type, data }));
         }
     }
 
-    handleGameMessage(message)
-    {
-        console.log('Game message:', message.type);
+    // ===================================================================
+    // GAME LOGIC (This section is all new for Noughts and Crosses)
+    // ===================================================================
 
-        switch (message.type)
-        {
+    handleGameMessage(message) {
+        console.log('Game message:', message.type);
+        switch (message.type) {
             case 'ready':
                 this.handlePlayerReady();
                 break;
-            case 'shot':
-                this.handleIncomingShot(message.data);
+            case 'move':
+                this.handleIncomingMove(message.data);
                 break;
-            case 'shot-result':
-                this.handleShotResult(message.data);
-                break;
-            case 'game-over':
-                this.handleGameOver(message.data);
+            case 'restart':
+                this.resetBoard();
                 break;
         }
     }
-
-    // Game Logic
-    initializeGame()
-    {
-        this.generateRandomShips();
-        this.renderPlayerGrid();
-        this.renderEnemyGrid();
-
+    
+    initializeGame() {
         document.getElementById('connectionPanel').classList.add('hidden');
         document.getElementById('gameArea').classList.remove('hidden');
-
-        this.updateStatus('Fleet deployed! Waiting for opponent...');
-        this.sendGameMessage('ready', { playerName: this.playerName });
-    }
-
-    generateRandomShips()
-    {
-        this.playerGrid = Array(10).fill().map(() => Array(10).fill(0));
-        this.playerShips = [];
-
-        for (const [length, count] of this.shipTypes)
-        {
-            for (let i = 0; i < count; i++)
-            {
-                this.placeRandomShip(length);
-            }
-        }
-    }
-
-    placeRandomShip(length)
-    {
-        let placed = false;
-        let attempts = 0;
-
-        while (!placed && attempts < 100)
-        {
-            const horizontal = Math.random() < 0.5;
-            const row = Math.floor(Math.random() * 10);
-            const col = Math.floor(Math.random() * 10);
-
-            if (this.canPlaceShip(row, col, length, horizontal))
-            {
-                const ship = [];
-                for (let i = 0; i < length; i++)
-                {
-                    const r = horizontal ? row : row + i;
-                    const c = horizontal ? col + i : col;
-                    this.playerGrid[r][c] = 1; // 1 = ship
-                    ship.push([r, c]);
-                }
-                this.playerShips.push(ship);
-                placed = true;
-            }
-            attempts++;
-        }
-    }
-
-    canPlaceShip(row, col, length, horizontal)
-    {
-        for (let i = 0; i < length; i++)
-        {
-            const r = horizontal ? row : row + i;
-            const c = horizontal ? col + i : col;
-
-            if (r >= 10 || c >= 10 || this.playerGrid[r][c] !== 0)
-            {
-                return false;
-            }
-
-            // Check surrounding cells
-            for (let dr = -1; dr <= 1; dr++)
-            {
-                for (let dc = -1; dc <= 1; dc++)
-                {
-                    const nr = r + dr;
-                    const nc = c + dc;
-                    if (nr >= 0 && nr < 10 && nc >= 0 && nc < 10 && this.playerGrid[nr][nc] !== 0)
-                    {
-                        return false;
-                    }
-                }
-            }
-        }
-        return true;
-    }
-
-    renderPlayerGrid()
-    {
-        const grid = document.getElementById('playerGrid');
-        grid.innerHTML = '';
-
-        for (let row = 0; row < 10; row++)
-        {
-            for (let col = 0; col < 10; col++)
-            {
-                const cell = document.createElement('div');
-                cell.className = 'grid-cell';
-                cell.dataset.row = row;
-                cell.dataset.col = col;
-
-                const value = this.playerGrid[row][col];
-                if (value === 1) cell.classList.add('ship');
-                else if (value === 2) cell.classList.add('hit');
-                else if (value === 3) cell.classList.add('miss');
-                else if (value === 4) cell.classList.add('sunk');
-
-                if (value === 2) cell.textContent = '💥';
-                else if (value === 3) cell.textContent = '💧';
-                else if (value === 4) cell.textContent = '💀';
-
-                grid.appendChild(cell);
-            }
-        }
-    }
-
-    renderEnemyGrid()
-    {
-        const grid = document.getElementById('enemyGrid');
-        grid.innerHTML = '';
-
-        for (let row = 0; row < 10; row++)
-        {
-            for (let col = 0; col < 10; col++)
-            {
-                const cell = document.createElement('div');
-                cell.className = 'grid-cell';
-                cell.dataset.row = row;
-                cell.dataset.col = col;
-
-                const value = this.enemyGrid[row][col];
-                if (value === 2) cell.classList.add('hit');
-                else if (value === 3) cell.classList.add('miss');
-                else if (value === 4) cell.classList.add('sunk');
-
-                if (value === 2) cell.textContent = '💥';
-                else if (value === 3) cell.textContent = '💧';
-                else if (value === 4) cell.textContent = '💀';
-
-                // Add click handler for shooting
-                if (this.myTurn && value === 0)
-                {
-                    cell.addEventListener('click', () => this.makeShot(row, col));
-                    cell.style.cursor = 'crosshair';
-                }
-
-                grid.appendChild(cell);
-            }
-        }
-    }
-
-    handlePlayerReady()
-    {
-        if (this.gameStarted) return;
-
+        document.getElementById('restartBtn').classList.remove('hidden');
+        
         this.gameStarted = true;
-        this.myTurn = this.isHost; // Host goes first
+        this.myMark = this.isHost ? 'X' : 'O';
+        this.myTurn = this.isHost;
 
-        if (this.myTurn)
-        {
-            this.updateStatus('Game started! Your turn - click on enemy waters to fire!');
-        } else
-        {
-            this.updateStatus('Game started! Opponent\'s turn - wait for them to fire!');
-        }
-
-        this.renderEnemyGrid();
+        this.renderBoard();
+        this.updateStatus('Connected! Waiting for opponent to be ready...');
+        this.sendGameMessage('ready', {});
     }
 
-    makeShot(row, col)
-    {
-        if (!this.myTurn || this.enemyGrid[row][col] !== 0) return;
+    handlePlayerReady() {
+        if (this.myTurn) {
+            this.updateStatus(`Game started! You are "${this.myMark}". Your turn!`);
+        } else {
+            this.updateStatus(`Game started! You are "${this.myMark}". Opponent's turn.`);
+        }
+    }
 
-        this.updateStatus('Firing torpedo... 🚀');
-        this.sendGameMessage('shot', { row, col });
+    renderBoard() {
+        const boardElement = document.getElementById('gameBoard');
+        boardElement.innerHTML = '';
+
+        for (let i = 0; i < 9; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            const mark = this.board[i];
+            if (mark) {
+                cell.classList.add(mark);
+                cell.textContent = mark;
+            }
+            
+            if (this.myTurn && !this.gameOver && !this.board[i]) {
+                cell.style.cursor = 'pointer';
+                cell.addEventListener('click', () => this.makeMove(i));
+            } else {
+                cell.style.cursor = 'default';
+            }
+            boardElement.appendChild(cell);
+        }
+    }
+
+    makeMove(index) {
+        if (!this.myTurn || this.gameOver || this.board[index] !== null) return;
+
+        this.board[index] = this.myMark;
         this.myTurn = false;
-        this.lastShotRow = row;
-        this.lastShotCol = col;
-    }
+        this.renderBoard();
+        this.sendGameMessage('move', { index });
 
-    handleIncomingShot(shot)
-    {
-        const { row, col } = shot;
-        const hit = this.playerGrid[row][col] === 1;
-
-        if (hit)
-        {
-            this.playerGrid[row][col] = 2; // Hit
-
-            // Check if ship is sunk
-            const sunkShip = this.checkShipSunk(row, col);
-            if (sunkShip)
-            {
-                sunkShip.forEach(([r, c]) => this.playerGrid[r][c] = 4);
-            }
-
-            // Check if all ships are sunk (game over)
-            const allSunk = this.playerShips.every(ship =>
-                ship.every(([r, c]) => this.playerGrid[r][c] === 4)
-            );
-
-            this.sendGameMessage('shot-result', {
-                hit: true,
-                sunk: !!sunkShip,
-                gameOver: allSunk
-            });
-
-            if (allSunk)
-            {
-                this.updateStatus('💀 Game Over! You lost!');
-                return;
-            }
-        } else
-        {
-            this.playerGrid[row][col] = 3; // Miss
-            this.sendGameMessage('shot-result', { hit: false });
-        }
-
-        this.renderPlayerGrid();
-
-        if (!hit)
-        {
-            this.myTurn = true;
-            this.updateStatus('Enemy missed! Your turn!');
-            this.renderEnemyGrid();
-        } else
-        {
-            this.updateStatus('Enemy hit your ship! They get another turn!');
+        const winner = this.checkWinner();
+        if (winner) {
+            this.handleGameOver(winner);
+        } else {
+            this.updateStatus("Opponent's turn...");
         }
     }
 
-    handleShotResult(result)
-    {
-        const row = this.lastShotRow;
-        const col = this.lastShotCol;
+    handleIncomingMove(data) {
+        const opponentMark = this.myMark === 'X' ? 'O' : 'X';
+        this.board[data.index] = opponentMark;
+        this.myTurn = true;
+        this.renderBoard();
 
-        if (result.hit)
-        {
-            this.enemyGrid[row][col] = result.sunk ? 4 : 2;
-
-            if (result.gameOver)
-            {
-                this.updateStatus('🎉 Congratulations! You won!');
-                return;
-            } else if (result.sunk)
-            {
-                this.updateStatus('💥 You sunk their ship! Fire again!');
-            } else
-            {
-                this.updateStatus('💥 Direct hit! Fire again!');
-            }
-
-            this.myTurn = true;
-        } else
-        {
-            this.enemyGrid[row][col] = 3;
-            this.updateStatus('💧 Miss! Opponent\'s turn...');
-            this.myTurn = false;
+        const winner = this.checkWinner();
+        if (winner) {
+            this.handleGameOver(winner);
+        } else {
+            this.updateStatus('Your turn!');
         }
-
-        this.renderEnemyGrid();
     }
 
-    checkShipSunk(hitRow, hitCol)
-    {
-        for (const ship of this.playerShips)
-        {
-            if (ship.some(([r, c]) => r === hitRow && c === hitCol))
-            {
-                // Check if all parts of this ship are hit
-                if (ship.every(([r, c]) => this.playerGrid[r][c] >= 2))
-                {
-                    return ship;
-                }
-                break;
+    checkWinner() {
+        const winningCombos = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+            [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+            [0, 4, 8], [2, 4, 6]  // Diagonals
+        ];
+
+        for (const combo of winningCombos) {
+            const [a, b, c] = combo;
+            if (this.board[a] && this.board[a] === this.board[b] && this.board[a] === this.board[c]) {
+                return this.board[a]; // Returns 'X' or 'O'
             }
         }
-        return null;
+
+        if (this.board.every(cell => cell !== null)) {
+            return 'draw';
+        }
+
+        return null; // No winner yet
     }
 
-    updateStatus(message)
-    {
+    handleGameOver(winner) {
+        this.gameOver = true;
+        this.myTurn = false;
+        if (winner === 'draw') {
+            this.updateStatus("It's a draw!");
+        } else if (winner === this.myMark) {
+            this.updateStatus('Congratulations, you won!');
+        } else {
+            this.updateStatus('You lost. Better luck next time!');
+        }
+    }
+    
+    restartGame() {
+        this.sendGameMessage('restart', {});
+        this.resetBoard();
+    }
+    
+    resetBoard() {
+        this.board = Array(9).fill(null);
+        this.gameOver = false;
+        this.myTurn = this.isHost;
+        this.renderBoard();
+        if(this.myTurn) {
+            this.updateStatus("Board reset. Your turn!");
+        } else {
+            this.updateStatus("Board reset. Opponent's turn.");
+        }
+    }
+
+    updateStatus(message) {
         document.getElementById('gameStatus').textContent = message;
     }
 }
@@ -555,88 +330,62 @@ class BattleshipGame
 // Global game instance
 let game = null;
 
-async function createGame()
-{
+async function createGame() {
     const gameId = document.getElementById('gameIdInput').value.trim();
     const playerName = document.getElementById('playerNameInput').value.trim();
+    if (!gameId || !playerName) { alert('Please enter both Game ID and your name'); return; }
 
-    if (!gameId || !playerName)
-    {
-        alert('Please enter both Game ID and your name');
-        return;
-    }
-
-    game = new BattleshipGame();
+    game = new NoughtsAndCrossesGame();
     game.gameId = gameId;
     game.playerName = playerName;
     game.isHost = true;
 
-    // Wait for SignalR to connect, then join WebRTC session
-    const waitForConnection = async () =>
-    {
-        if (game.signalRConnection && game.signalRConnection.state === signalR.HubConnectionState.Connected)
-        {
-            try
-            {
-                // Join WebRTC session using your existing TeamHub method
-                await game.signalRConnection.invoke("JoinWebRTCSession", `battleship_${gameId}`, game.myUserId);
-                game.updateStatus(`Game "${gameId}" created. Share this Game ID with your opponent!`);
-            } catch (error)
-            {
+    const waitForConnection = async () => {
+        if (game.signalRConnection && game.signalRConnection.state === signalR.HubConnectionState.Connected) {
+            try {
+                await game.signalRConnection.invoke("JoinWebRTCSession", `noughts_${gameId}`, game.myUserId);
+                game.updateStatus(`Game "${gameId}" created. Share the ID!`);
+            } catch (error) {
                 console.error('Error creating game:', error);
-                game.updateStatus('Error creating game. Please try again.');
+                game.updateStatus('Error creating game.');
             }
-        } else
-        {
+        } else {
             setTimeout(waitForConnection, 100);
         }
     };
-
     await waitForConnection();
 
     document.getElementById('createGameBtn').disabled = true;
     document.getElementById('joinGameBtn').disabled = true;
+    document.getElementById('restartBtn').addEventListener('click', () => game.restartGame());
 }
 
-async function joinGame()
-{
+async function joinGame() {
     const gameId = document.getElementById('gameIdInput').value.trim();
     const playerName = document.getElementById('playerNameInput').value.trim();
+    if (!gameId || !playerName) { alert('Please enter both Game ID and your name'); return; }
 
-    if (!gameId || !playerName)
-    {
-        alert('Please enter both Game ID and your name');
-        return;
-    }
-
-    game = new BattleshipGame();
+    game = new NoughtsAndCrossesGame();
     game.gameId = gameId;
     game.playerName = playerName;
     game.isHost = false;
 
-    // Wait for SignalR to connect, then join WebRTC session
-    const waitForConnection = async () =>
-    {
-        if (game.signalRConnection && game.signalRConnection.state === signalR.HubConnectionState.Connected)
-        {
-            try
-            {
-                // Join WebRTC session using your existing TeamHub method
-                await game.signalRConnection.invoke("JoinWebRTCSession", `battleship_${gameId}`, game.myUserId);
+    const waitForConnection = async () => {
+        if (game.signalRConnection && game.signalRConnection.state === signalR.HubConnectionState.Connected) {
+            try {
+                await game.signalRConnection.invoke("JoinWebRTCSession", `noughts_${gameId}`, game.myUserId);
                 game.updateStatus(`Joining game "${gameId}"...`);
-            } catch (error)
-            {
+            } catch (error) {
                 console.error('Error joining game:', error);
-                game.updateStatus('Error joining game. Please try again.');
+                game.updateStatus('Error joining game.');
             }
-        } else
-        {
+        } else {
             setTimeout(waitForConnection, 100);
         }
     };
-
     await waitForConnection();
 
     document.getElementById('createGameBtn').disabled = true;
     document.getElementById('joinGameBtn').disabled = true;
+    document.getElementById('restartBtn').addEventListener('click', () => game.restartGame());
 }
