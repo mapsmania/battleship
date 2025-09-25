@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Battleships</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .connection-panel {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+        }
+
+            .connection-panel input {
+                padding: 10px;
+                margin: 5px;
+                border: none;
+                border-radius: 5px;
+                font-size: 16px;
+            }
+
+            .connection-panel button {
+                padding: 10px 20px;
+                margin: 5px;
+                border: none;
+                border-radius: 5px;
+                background: #4CAF50;
+                color: white;
+                font-size: 16px;
+                cursor: pointer;
+                transition: background 0.3s;
+            }
+
+                .connection-panel button:hover {
+                    background: #45a049;
+                }
+
+                .connection-panel button:disabled {
+                    background: #666;
+                    cursor: not-allowed;
+                }
+
+        .game-status {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            text-align: center;
+            font-weight: bold;
+            min-height: 20px;
+        }
+
+        .game-boards {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .board-container {
+            text-align: center;
+        }
+
+        .board-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 40px);
+            grid-template-rows: repeat(10, 40px);
+            gap: 2px;
+            border: 2px solid #fff;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .grid-cell {
+            width: 40px;
+            height: 40px;
+            border: 1px solid #ccc;
+            background: #4a90e2;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+            .grid-cell:hover {
+                background: #357abd;
+                transform: scale(1.05);
+            }
+
+            .grid-cell.ship {
+                background: #666;
+            }
+
+            .grid-cell.hit {
+                background: #e74c3c;
+                color: white;
+            }
+
+            .grid-cell.miss {
+                background: #95a5a6;
+                color: white;
+            }
+
+            .grid-cell.sunk {
+                background: #8e44ad;
+                color: white;
+            }
+
+        .enemy-grid .grid-cell.ship {
+            background: #4a90e2; /* Hide enemy ships */
+        }
+
+        .connection-info {
+            font-size: 14px;
+            color: #bbb;
+            margin-top: 10px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .game-boards {
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .game-grid {
+                grid-template-columns: repeat(10, 30px);
+                grid-template-rows: repeat(10, 30px);
+            }
+
+            .grid-cell {
+                width: 30px;
+                height: 30px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🚢 WebRTC Battleships</h1>
+
+        <div id="connectionPanel" class="connection-panel">
+            <h3>Join Game</h3>
+            <div>
+                <input type="text" id="gameIdInput" placeholder="Game ID (e.g. room123)" maxlength="20">
+                <input type="text" id="playerNameInput" placeholder="Your Name" maxlength="15">
+            </div>
+            <div>
+                <button id="createGameBtn" onclick="createGame()">Create Game</button>
+                <button id="joinGameBtn" onclick="joinGame()">Join Game</button>
+            </div>
+            <div class="connection-info">
+                Enter a Game ID to create or join a game. Share the Game ID with your opponent.
+            </div>
+        </div>
+
+        <div id="gameStatus" class="game-status">
+            Enter Game ID and Name to start playing
+        </div>
+
+        <div id="gameArea" class="hidden">
+            <div class="game-boards">
+                <div class="board-container">
+                    <div class="board-title">Your Fleet</div>
+                    <div id="playerGrid" class="game-grid player-grid"></div>
+                </div>
+
+                <div class="board-container">
+                    <div class="board-title">Enemy Waters</div>
+                    <div id="enemyGrid" class="game-grid enemy-grid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.13/signalr.min.js"
+            onerror="console.log('CDN failed, loading local file'); this.onerror=null; this.src='signalr.min.js'"></script>
+    <!-- SignalR JavaScript Library -->
+    <script src="https://unpkg.com/@microsoft/signalr@latest/dist/browser/signalr.js"></script>
+    <script src="webrtc.js"></script>
+    <script src="webrtc-p2p-core.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
