@@ -1,3 +1,4 @@
+
 // Battleship Game Logic with proper SignalR + WebRTC
 class BattleshipGame
 {
@@ -353,55 +354,34 @@ class BattleshipGame
         return true;
     }
 
-    renderPlayerGrid() {
-    const grid = document.getElementById('playerGrid');
-    grid.innerHTML = '';
+    renderPlayerGrid()
+    {
+        const grid = document.getElementById('playerGrid');
+        grid.innerHTML = '';
 
-    // Draw grid cells (water/hits/misses)
-    for (let row = 0; row < 10; row++) {
-        for (let col = 0; col < 10; col++) {
-            const cell = document.createElement('div');
-            cell.className = 'grid-cell';
-            cell.dataset.row = row;
-            cell.dataset.col = col;
+        for (let row = 0; row < 10; row++)
+        {
+            for (let col = 0; col < 10; col++)
+            {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                cell.dataset.row = row;
+                cell.dataset.col = col;
 
-            const value = this.playerGrid[row][col];
-            if (value === 2) cell.textContent = '💥';
-            else if (value === 3) cell.textContent = '💧';
-            else if (value === 4) cell.textContent = '💀';
+                const value = this.playerGrid[row][col];
+                if (value === 1) cell.classList.add('ship');
+                else if (value === 2) cell.classList.add('hit');
+                else if (value === 3) cell.classList.add('miss');
+                else if (value === 4) cell.classList.add('sunk');
 
-            grid.appendChild(cell);
+                if (value === 2) cell.textContent = '💥';
+                else if (value === 3) cell.textContent = '💧';
+                else if (value === 4) cell.textContent = '💀';
+
+                grid.appendChild(cell);
+            }
         }
     }
-
-    // Now overlay ships
-    const cellSize = 40; // matches your CSS
-    this.playerShips.forEach(ship => {
-        const horizontal = ship[0][0] === ship[1][0]; // same row = horizontal
-        const length = ship.length;
-        const top = ship[0][0] * cellSize;
-        const left = ship[0][1] * cellSize;
-
-        const img = document.createElement('img');
-        img.src = 'frigate.png';  // later swap per ship type
-        img.className = 'ship-image';
-
-        if (horizontal) {
-            img.style.width = (length * cellSize) + 'px';
-            img.style.height = cellSize + 'px';
-            img.style.transform = 'rotate(0deg)';
-        } else {
-            img.style.width = cellSize + 'px';
-            img.style.height = (length * cellSize) + 'px';
-            img.style.transform = 'rotate(0deg)';
-        }
-
-        img.style.top = top + 'px';
-        img.style.left = left + 'px';
-
-        grid.appendChild(img);
-    });
-}
 
     renderEnemyGrid()
     {
