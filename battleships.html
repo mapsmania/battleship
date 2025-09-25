@@ -167,6 +167,19 @@
                 font-size: 14px;
             }
         }
+        /* Make sure playerGrid can hold absolutely positioned ships */
+#playerGrid {
+    position: relative;
+}
+
+/* Ships are drawn on top of the grid */
+.ship-image {
+    position: absolute;
+    pointer-events: none;   /* clicks go through to the grid */
+    transform-origin: top left;
+    image-rendering: crisp-edges; /* avoid blurry scaling */
+}
+
     </style>
 </head>
 <body>
