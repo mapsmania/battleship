@@ -1,4 +1,3 @@
-
 // Battleship Game Logic with proper SignalR + WebRTC
 class BattleshipGame
 {
