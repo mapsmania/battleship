@@ -357,7 +357,7 @@ class BattleshipGame
     const grid = document.getElementById('playerGrid');
     grid.innerHTML = '';
 
-    // Render water + hits + misses as before
+    // Draw grid cells (water/hits/misses)
     for (let row = 0; row < 10; row++) {
         for (let col = 0; col < 10; col++) {
             const cell = document.createElement('div');
@@ -374,18 +374,16 @@ class BattleshipGame
         }
     }
 
-    // Now draw ships as images
-    const cellSize = 40; // match CSS grid cell size
-    for (const ship of this.playerShips) {
-        // Determine orientation
+    // Now overlay ships
+    const cellSize = 40; // matches your CSS
+    this.playerShips.forEach(ship => {
         const horizontal = ship[0][0] === ship[1][0]; // same row = horizontal
         const length = ship.length;
-
         const top = ship[0][0] * cellSize;
         const left = ship[0][1] * cellSize;
 
         const img = document.createElement('img');
-        img.src = 'frigate.png';
+        img.src = 'frigate.png';  // later swap per ship type
         img.className = 'ship-image';
 
         if (horizontal) {
@@ -402,7 +400,7 @@ class BattleshipGame
         img.style.left = left + 'px';
 
         grid.appendChild(img);
-    }
+    });
 }
 
     renderEnemyGrid()
