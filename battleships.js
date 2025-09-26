@@ -368,7 +368,42 @@ class BattleshipGame
                 cell.dataset.col = col;
 
                 const value = this.playerGrid[row][col];
-                if (value === 1) cell.classList.add('ship');
+
+                // 1 = ship (unhit)
+                if (value === 1)
+                {
+                    cell.classList.add('ship');
+
+                    // Find the ship this cell belongs to
+                    const ship = this.playerShips.find(s =>
+                        s.some(([r, c]) => r === row && c === col)
+                    );
+
+                    if (ship)
+                    {
+                        const shipLength = ship.length;
+                        const cellIndex = ship.findIndex(([r, c]) => r === row && c === col);
+
+                        // Determine orientation
+                        const isHorizontal = ship.length > 1 && ship[0][0] === ship[1][0];
+
+                        // Add orientation class
+                        cell.classList.add(isHorizontal ? 'ship-h' : 'ship-v');
+
+                        // Add segment class
+                        if (cellIndex === 0)
+                        {
+                            cell.classList.add('ship-front');
+                        } else if (cellIndex === shipLength - 1)
+                        {
+                            cell.classList.add('ship-back');
+                        } else if (shipLength > 2)
+                        {
+                            // Use 'middle' for all non-end pieces of ships with length > 2
+                            cell.classList.add('ship-middle');
+                        }
+                    }
+                }
                 else if (value === 2) cell.classList.add('hit');
                 else if (value === 3) cell.classList.add('miss');
                 else if (value === 4) cell.classList.add('sunk');
@@ -381,7 +416,6 @@ class BattleshipGame
             }
         }
     }
-
     renderEnemyGrid()
     {
         const grid = document.getElementById('enemyGrid');
