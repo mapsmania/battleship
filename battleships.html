@@ -167,17 +167,59 @@
                 font-size: 14px;
             }
         }
-        /* Make sure playerGrid can hold absolutely positioned ships */
-#playerGrid {
-    position: relative;
+/* --- New Ship Image Styles --- */
+
+/* Ship base style: removes the default gray background */
+.grid-cell.ship {
+    background: transparent !important; /* Override default .ship background */
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
 }
 
-/* Ships are drawn on top of the grid */
-.ship-image {
-    position: absolute;
-    pointer-events: none;   /* clicks go through to the grid */
-    transform-origin: top left;
-    image-rendering: crisp-edges; /* avoid blurry scaling */
+/* Horizontal Ships */
+/* Front/Bow: First square of a horizontal ship */
+.grid-cell.ship-h.ship-front {
+    background-image: url('front.png');
+}
+
+/* Middle: Squares between front and back (only for length 3, 4, 5) */
+.grid-cell.ship-h.ship-middle {
+    background-image: url('middle.png');
+}
+
+/* Back/Stern: Last square of a horizontal ship */
+.grid-cell.ship-h.ship-back {
+    background-image: url('back.png');
+}
+
+/* Vertical Ships */
+/* For vertical ships, we rotate the horizontal image by 90 degrees */
+
+/* Front/Bow: First square of a vertical ship (will look like a side) */
+.grid-cell.ship-v.ship-front {
+    background-image: url('front.png');
+    transform: rotate(90deg);
+}
+
+/* Middle: Squares between front and back (only for length 3, 4, 5) */
+.grid-cell.ship-v.ship-middle {
+    background-image: url('middle.png');
+    transform: rotate(90deg);
+}
+
+/* Back/Stern: Last square of a vertical ship (will look like a side) */
+.grid-cell.ship-v.ship-back {
+    background-image: url('back.png');
+    transform: rotate(90deg);
+}
+
+/* Ensure hit/miss/sunk overlays are on top and reset rotation */
+.grid-cell.hit, 
+.grid-cell.miss, 
+.grid-cell.sunk {
+    transform: none !important; /* Reset any ship rotation */
+    background-image: none !important; /* Clear ship image */
 }
 
     </style>
