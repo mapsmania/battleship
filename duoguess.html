@@ -281,13 +281,13 @@ class StreetViewGame {
     this.map.flyTo({ center: [correctLng, correctLat], zoom: 6 });
     
     const winner = results[winnerId].userName;
-    let statusMessage = `Game Over! The correct location is marked in **green**. **${winner}** wins!`;
-    
+    let statusMessage = `Game Over! The correct location is marked in <strong>green</strong>. <strong>${winner}</strong> wins!`;
+   
     // Append individual results
     Object.keys(results).forEach(userId => {
         if (userId !== 'correctLocation' && userId !== 'winnerId') {
             const distanceKm = (results[userId].distance / 1000).toFixed(2);
-            statusMessage += ` | **${results[userId].userName}** was **${distanceKm} km** away.`;
+            statusMessage += ` | <strong>${results[userId].userName}</strong> was <strong>${distanceKm} km</strong> away.`;
         }
     });
     
