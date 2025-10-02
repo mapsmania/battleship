@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>TripGeo Street-View WebRTC Game</title>
+<title>Tripgeo WebRTC Street-View Game</title>
 
 <link href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
@@ -32,22 +32,23 @@ h1{color:#00796b;margin-top:0}
   background:#00796b;color:#fff;border:none;cursor:pointer;
 }
 #connectionPanel button:disabled{background:#9e9e9e}
-#map{height:400px;width:100%;border-radius:8px;border:1px solid #ddd;margin-bottom:1rem}
+#map{height:500px;width:100%;border-radius:8px;border:1px solid #ddd;margin-bottom:1rem;}
 #streetViewContainer img{max-width:100%;border-radius:8px;border:1px solid #ccc;}
 #gameStatus{margin-top:1rem;font-weight:500;color:#555;min-height:1.5rem}
-@media(max-width:600px){#map{height:300px}}
+@media(max-width:600px){#map{height:70vh}}
 </style>
 </head>
-<body>
 
+<body>
 <div class="container">
-  <h1>TripGeo Street-View Game</h1>
+  <h1>Street-View Guessing Game</h1>
   <div id="connectionPanel">
     <input id="roomIdInput" placeholder="Room ID">
     <input id="userNameInput" placeholder="Your Name">
     <button id="createRoomBtn" onclick="createSession()">Create Room</button>
-    <button id="joinRoomBtn" onclick="joinSession()">Join Room</button>
+    <button id="joinRoomBtn"   onclick="joinSession()">Join Room</button>
   </div>
+
   <div id="streetViewContainer"></div>
   <div id="map"></div>
   <p id="gameStatus">Create or join a room to start playing.</p>
@@ -58,192 +59,134 @@ class StreetViewGame {
   constructor(){
     this.roomId=null;
     this.userName=null;
-    this.myUserId=Math.floor(Math.random()*1000000);
+    this.myUserId=Math.floor(Math.random()*10000)+1;
     this.isHost=false;
     this.map=null;
     this.myMarker=null;
     this.peerMarkers={};
-    this.signalRConnection=null;
-    this.peerConnection=null;
-    this.dataChannel=null;
-    this.currentProperty=null;
     this.guesses={};
-
+    this.currentProperty=null;
+    this.signalRConnection=null;
     this.opponentUserId=null;
-    this.connected=false;
 
-    this.initMap();
+    this.initializeMap();
   }
 
-  initMap(){
+  initializeMap(){
     this.map=new maplibregl.Map({
       container:'map',
-      style:'https://demotiles.maplibre.org/style.json',
+      style:'https://tiles.openfreemap.org/styles/liberty',
       center:[0,0],
       zoom:2
     });
-
-    this.map.on('click',e=>{
-      this.placeOrMoveMyMarker(e.lngLat.lng,e.lngLat.lat);
-    });
+    this.map.on('click', e => this.placeOrMoveMyMarker(e.lngLat.lng,e.lngLat.lat));
   }
 
   placeOrMoveMyMarker(lng,lat){
-    const label = this.userName || 'You';
+    const label=this.userName||'You';
     if(!this.myMarker){
       this.myMarker=new maplibregl.Marker({color:'#00796b'})
         .setLngLat([lng,lat])
         .setPopup(new maplibregl.Popup({offset:12}).setText(label))
         .addTo(this.map);
       this.myMarker.togglePopup();
-    } else this.myMarker.setLngLat([lng,lat]);
+    } else {
+      this.myMarker.setLngLat([lng,lat]);
+      const popup=this.myMarker.getPopup();
+      if(popup) popup.setText(label);
+    }
 
-    // send update if connected
-    if(this.connected) this.sendMapData('marker-update',{lng,lat,userId:this.myUserId,userName:this.userName});
-    this.guesses[this.myUserId]={lng,lat};
+    this.sendMapData('marker-update',{lng,lat,userId:this.myUserId,userName:this.userName});
   }
-
-  updateStatus(msg){ document.getElementById('gameStatus').textContent=msg; console.log(msg); }
 
   async connectToTripgeoHub(){
     if(this.signalRConnection) return;
 
-    const hubUrl=`https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=streetview_webrtc`;
-    this.signalRConnection=new signalR.HubConnectionBuilder().withUrl(hubUrl).withAutomaticReconnect().build();
+    const hubUrl=`https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=shared_map_temp`;
+    this.signalRConnection=new signalR.HubConnectionBuilder()
+      .withUrl(hubUrl)
+      .withAutomaticReconnect()
+      .build();
 
-    // peer joined
+    // Peer joined
     this.signalRConnection.on('WebRTCPeerJoined',(userName,userId)=>{
       if(userId!==this.myUserId){
         this.opponentUserId=userId;
         if(this.isHost){
-          this.updateStatus(`${userName} joined. Sending street-view when ready...`);
-          if(this.dataChannel && this.dataChannel.readyState==='open' && this.currentProperty){
-            this.sendMapData('street-view',this.currentProperty);
-          }
+          this.updateStatus(`${userName} joined. Loading street-view...`);
+          this.loadRandomStreetView();
         } else {
           this.updateStatus(`${userName} joined. Waiting for street-view...`);
         }
       }
     });
 
-    // signaling messages
-    this.signalRConnection.on('WebRTCSignalingMessageReceived',async(fromUserId,type,data)=>{
+    // Received street-view from host
+    this.signalRConnection.on('WebRTCSignalingMessageReceived',async(fromUserId,messageType,messageData)=>{
       if(fromUserId!==this.myUserId){
-        this.opponentUserId=fromUserId;
-        await this.handleSignalingMessage(type,data);
+        if(messageType==='street-view'){
+          this.showStreetView(messageData);
+        }
       }
-    });
-
-    // peer left
-    this.signalRConnection.on('WebRTCPeerLeft',(userId)=>{
-      if(userId===this.opponentUserId) this.updateStatus('Peer disconnected. Marker remains.');
     });
 
     await this.signalRConnection.start();
-    this.updateStatus('Connected to TripGeo hub.');
+    this.updateStatus('Connected to Tripgeo hub.');
   }
 
-  async sendSignalingMessage(type,data){
-    if(!this.signalRConnection||!this.opponentUserId) return;
-    try{
-      await this.signalRConnection.invoke('SendWebRTCSignalingMessage',this.opponentUserId.toString(),type,data);
-    } catch(err){ console.error(err); }
-  }
-
-  async createPeerConnection(){
-    if(this.peerConnection) return;
-    this.peerConnection=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-
-    if(this.isHost){
-      this.dataChannel=this.peerConnection.createDataChannel('mapChannel',{ordered:true});
-      this.setupDataChannel(this.dataChannel);
-    }
-
-    this.peerConnection.ondatachannel=(e)=>{this.dataChannel=e.channel; this.setupDataChannel(this.dataChannel);};
-    this.peerConnection.onicecandidate=(e)=>{
-      if(e.candidate) this.sendSignalingMessage('ice-candidate',e.candidate);
-    };
-    this.peerConnection.onconnectionstatechange=()=>{
-      const state=this.peerConnection.connectionState;
-      if(state==='connected'){ 
-        this.connected=true; 
-        this.updateStatus('Peer connected!');
-        if(this.myMarker){
-          const {lng,lat}=this.myMarker.getLngLat();
-          this.sendMapData('marker-update',{lng,lat,userId:this.myUserId,userName:this.userName});
-        }
-        if(this.isHost && this.currentProperty) this.sendMapData('street-view',this.currentProperty);
-      } else if(state==='disconnected'||state==='failed'){ this.connected=false; this.updateStatus('Peer disconnected'); }
-    };
-  }
-
-  setupDataChannel(channel){
-    channel.onopen=()=>{
-      console.log('Data channel open');
-      this.connected=true;
-      if(this.myMarker){
-        const {lng,lat}=this.myMarker.getLngLat();
-        this.sendMapData('marker-update',{lng,lat,userId:this.myUserId,userName:this.userName});
-      }
-      // send street view if host
-      if(this.isHost && this.currentProperty) this.sendMapData('street-view',this.currentProperty);
-    };
-    channel.onmessage=(e)=>{
-      try{ const msg=JSON.parse(e.data); this.handleMapMessage(msg); }
-      catch(err){ console.error('Data channel message parse failed',err); }
-    };
-  }
-
-  async createOffer(){ await this.createPeerConnection(); const offer=await this.peerConnection.createOffer(); await this.peerConnection.setLocalDescription(offer); await this.sendSignalingMessage('offer',offer); }
-  async handleOffer(offer){ await this.createPeerConnection(); await this.peerConnection.setRemoteDescription(offer); const answer=await this.peerConnection.createAnswer(); await this.peerConnection.setLocalDescription(answer); await this.sendSignalingMessage('answer',answer); }
-  async handleAnswer(answer){ if(this.peerConnection) await this.peerConnection.setRemoteDescription(answer); }
-  async handleIceCandidate(candidate){ if(this.peerConnection) await this.peerConnection.addIceCandidate(candidate); }
-
-  handleSignalingMessage(type,data){
-    switch(type){
-      case 'offer': return this.handleOffer(data);
-      case 'answer': return this.handleAnswer(data);
-      case 'ice-candidate': return this.handleIceCandidate(data);
-    }
-  }
-
-  sendMapData(type,data){ if(this.dataChannel && this.dataChannel.readyState==='open'){ this.dataChannel.send(JSON.stringify({type,data})); } }
-
-  handleMapMessage(msg){
-    if(!msg||!msg.type) return;
-    if(msg.type==='marker-update') this.handleMarkerUpdate(msg.data);
-    else if(msg.type==='street-view') this.showStreetView(msg.data);
-  }
-
-  handleMarkerUpdate(d){
-    if(!d||d.userId===this.myUserId) return;
-    if(!this.peerMarkers[d.userId]){
-      this.peerMarkers[d.userId]=new maplibregl.Marker({color:'#d9534f'})
-        .setLngLat([d.lng,d.lat])
-        .setPopup(new maplibregl.Popup({offset:12}).setText(d.userName||'Peer'))
-        .addTo(this.map);
-      this.peerMarkers[d.userId].togglePopup();
-    } else this.peerMarkers[d.userId].setLngLat([d.lng,d.lat]);
+  async sendStreetView(property){
+    if(!this.opponentUserId) return;
+    await this.signalRConnection.invoke('SendWebRTCSignalingMessage',this.opponentUserId.toString(),'street-view',property);
   }
 
   async loadRandomStreetView(){
     try{
       const res=await fetch('https://api.tripgeo.com/api/rentcast');
       const data=await res.json();
-      const props=data.filter(p=>p.streetView && p.streetView.hasStreetView);
-      if(!props.length){ this.updateStatus('No street-view available'); return; }
-      this.currentProperty=props[Math.floor(Math.random()*props.length)];
-      this.showStreetView(this.currentProperty);
-    } catch(err){ console.error(err); this.updateStatus('Failed to load street-view'); }
+      const properties=data.filter(p=>p.streetView && p.streetView.hasStreetView);
+      if(!properties.length){ this.updateStatus('No street-view available'); return; }
+
+      const property=properties[Math.floor(Math.random()*properties.length)];
+      this.currentProperty=property;
+      this.showStreetView(property);
+
+      if(this.isHost) await this.sendStreetView(property);
+    }catch(err){
+      console.error(err);
+      this.updateStatus('Failed to load street-view data.');
+    }
   }
 
   showStreetView(property){
-    this.currentProperty=property;
     const pano=property.streetView;
     const imgUrl=`https://api.tripgeo.com/api/StreetViewImage/${pano.panoId}_${pano.direction}`;
     document.getElementById('streetViewContainer').innerHTML=`<img src="${imgUrl}" alt="Street View">`;
     this.updateStatus('Look at the street-view above and click on the map to guess.');
   }
+
+  sendMapData(type,data){
+    if(!this.signalRConnection || !this.opponentUserId) return;
+    this.signalRConnection.invoke('SendWebRTCSignalingMessage',this.opponentUserId.toString(),type,data).catch(console.error);
+  }
+
+  handleMapMessage(msg){
+    if(msg.type==='marker-update'){
+      const d=msg.data;
+      if(d.userId===this.myUserId) return;
+      if(!this.peerMarkers[d.userId]){
+        const popup=new maplibregl.Popup({offset:12}).setText(d.userName||'Peer');
+        this.peerMarkers[d.userId]=new maplibregl.Marker({color:'#d9534f'})
+          .setLngLat([d.lng,d.lat])
+          .setPopup(popup)
+          .addTo(this.map);
+        this.peerMarkers[d.userId].togglePopup();
+      } else {
+        this.peerMarkers[d.userId].setLngLat([d.lng,d.lat]);
+      }
+    }
+  }
+
+  updateStatus(msg){ document.getElementById('gameStatus').innerText=msg; }
 }
 
 const game=new StreetViewGame();
@@ -252,21 +195,23 @@ async function createSession(){
   const room=document.getElementById('roomIdInput').value.trim();
   const name=document.getElementById('userNameInput').value.trim();
   if(!room||!name){alert('Enter room and name');return;}
-  game.roomId=room; game.userName=name; game.isHost=true;
+  game.roomId=room;
+  game.userName=name;
+  game.isHost=true;
   await game.connectToTripgeoHub();
   await game.signalRConnection.invoke('JoinWebRTCSession',`map_${room}`,game.myUserId);
   game.updateStatus(`Room "${room}" created. Waiting for players...`);
   document.getElementById('createRoomBtn').disabled=true;
   document.getElementById('joinRoomBtn').disabled=true;
-  // host loads first round
-  game.loadRandomStreetView();
 }
 
 async function joinSession(){
   const room=document.getElementById('roomIdInput').value.trim();
   const name=document.getElementById('userNameInput').value.trim();
   if(!room||!name){alert('Enter room and name');return;}
-  game.roomId=room; game.userName=name; game.isHost=false;
+  game.roomId=room;
+  game.userName=name;
+  game.isHost=false;
   await game.connectToTripgeoHub();
   await game.signalRConnection.invoke('JoinWebRTCSession',`map_${room}`,game.myUserId);
   game.updateStatus(`Joining room "${room}"...`);
@@ -274,6 +219,5 @@ async function joinSession(){
   document.getElementById('joinRoomBtn').disabled=true;
 }
 </script>
-
 </body>
 </html>
