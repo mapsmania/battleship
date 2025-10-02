@@ -96,13 +96,7 @@ class StreetViewGame {
       if(popup) popup.setText(label);
     }
 
-    // store our guess
-    this.guesses[this.myUserId]={lng,lat};
-
     this.sendMapData('marker-update',{lng,lat,userId:this.myUserId,userName:this.userName});
-
-    // check for scoring
-    this.checkForBothGuesses();
   }
 
   async connectToTripgeoHub(){
@@ -127,13 +121,11 @@ class StreetViewGame {
       }
     });
 
-    // Received messages
+    // Received street-view from host
     this.signalRConnection.on('WebRTCSignalingMessageReceived',async(fromUserId,messageType,messageData)=>{
       if(fromUserId!==this.myUserId){
         if(messageType==='street-view'){
           this.showStreetView(messageData);
-        } else if(messageType==='marker-update'){
-          this.handlePeerGuess(messageData);
         }
       }
     });
@@ -177,59 +169,54 @@ class StreetViewGame {
     this.signalRConnection.invoke('SendWebRTCSignalingMessage',this.opponentUserId.toString(),type,data).catch(console.error);
   }
 
-  handlePeerGuess(data){
-    if(!data || data.userId===this.myUserId) return;
-    this.guesses[data.userId]={lng:data.lng,lat:data.lat};
-
-    if(!this.peerMarkers[data.userId]){
-      const popup=new maplibregl.Popup({offset:12}).setText(data.userName||'Peer');
-      this.peerMarkers[data.userId]=new maplibregl.Marker({color:'#d9534f'})
-        .setLngLat([data.lng,data.lat])
-        .setPopup(popup)
-        .addTo(this.map);
-      this.peerMarkers[data.userId].togglePopup();
-    } else {
-      this.peerMarkers[data.userId].setLngLat([data.lng,data.lat]);
+  handleMapMessage(msg){
+    if(msg.type==='marker-update'){
+      const d=msg.data;
+      if(d.userId===this.myUserId) return;
+      if(!this.peerMarkers[d.userId]){
+        const popup=new maplibregl.Popup({offset:12}).setText(d.userName||'Peer');
+        this.peerMarkers[d.userId]=new maplibregl.Marker({color:'#d9534f'})
+          .setLngLat([d.lng,d.lat])
+          .setPopup(popup)
+          .addTo(this.map);
+        this.peerMarkers[d.userId].togglePopup();
+      } else {
+        this.peerMarkers[d.userId].setLngLat([d.lng,d.lat]);
+      }
     }
-
-    this.checkForBothGuesses();
-  }
-
-  checkForBothGuesses(){
-    if(!this.currentProperty) return;
-    if(Object.keys(this.guesses).length<2) return;
-
-    const actual={lng:this.currentProperty.longitude,lat:this.currentProperty.latitude};
-    const results=[];
-
-    for(const [uid,g] of Object.entries(this.guesses)){
-      const dist=this.haversine(g.lat,g.lng,actual.lat,actual.lng);
-      results.push({uid,dist});
-    }
-
-    const winner=results[0].dist<results[1].dist?results[0].uid:results[1].uid;
-    const winnerName=winner===this.myUserId?this.userName:'Opponent';
-
-    this.updateStatus(`Round over! Actual location: ${this.currentProperty.formattedAddress}. ${winnerName} was closer.`);
-
-    // show actual location
-    new maplibregl.Marker({color:'green'})
-      .setLngLat([actual.lng,actual.lat])
-      .setPopup(new maplibregl.Popup().setText("Actual Location"))
-      .addTo(this.map)
-      .togglePopup();
-  }
-
-  // Haversine formula to compute distance in km
-  haversine(lat1,lon1,lat2,lon2){
-    const R=6371, toRad=x=>x*Math.PI/180;
-    const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
-    const a=Math.sin(dLat/2)**2 +
-            Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
   }
 
   updateStatus(msg){ document.getElementById('gameStatus').innerText=msg; }
+}
+
+const game=new StreetViewGame();
+
+async function createSession(){
+  const room=document.getElementById('roomIdInput').value.trim();
+  const name=document.getElementById('userNameInput').value.trim();
+  if(!room||!name){alert('Enter room and name');return;}
+  game.roomId=room;
+  game.userName=name;
+  game.isHost=true;
+  await game.connectToTripgeoHub();
+  await game.signalRConnection.invoke('JoinWebRTCSession',`map_${room}`,game.myUserId);
+  game.updateStatus(`Room "${room}" created. Waiting for players...`);
+  document.getElementById('createRoomBtn').disabled=true;
+  document.getElementById('joinRoomBtn').disabled=true;
+}
+
+async function joinSession(){
+  const room=document.getElementById('roomIdInput').value.trim();
+  const name=document.getElementById('userNameInput').value.trim();
+  if(!room||!name){alert('Enter room and name');return;}
+  game.roomId=room;
+  game.userName=name;
+  game.isHost=false;
+  await game.connectToTripgeoHub();
+  await game.signalRConnection.invoke('JoinWebRTCSession',`map_${room}`,game.myUserId);
+  game.updateStatus(`Joining room "${room}"...`);
+  document.getElementById('createRoomBtn').disabled=true;
+  document.getElementById('joinRoomBtn').disabled=true;
 }
 </script>
 </body>
