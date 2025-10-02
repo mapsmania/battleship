@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Street-View Guessing Game</title>
+
+<!-- MapLibre -->
+<link href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
+
+<style>
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background:#f0f2f5; margin:0; padding:0;
+    display:flex; justify-content:center; align-items:center;
+    min-height:100vh;
+}
+.container {
+    background:#fff; padding:1.5rem; border-radius:12px;
+    box-shadow:0 6px 24px rgba(0,0,0,0.15);
+    width:90%; max-width:900px;
+}
+h1 { color:#00796b; margin-top:0 }
+#connectionPanel { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:1rem; }
+#connectionPanel input, #connectionPanel button {
+    padding:8px 12px; font-size:1rem; border:1px solid #ddd; border-radius:6px;
+}
+#connectionPanel button { background:#00796b; color:white; border:none; cursor:pointer; }
+#connectionPanel button:disabled { background:#aaa; cursor:not-allowed; }
+
+#streetViewContainer { margin-bottom:1rem; text-align:center; }
+#map { height:500px; width:100%; border-radius:8px; border:1px solid #ccc; }
+
+#gameStatus { margin-top:1rem; font-weight:500; }
+
+@media(max-width:600px){ #map{height:60vh;} }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>Street-View Guessing Game</h1>
+
+    <div id="connectionPanel">
+        <input type="text" id="roomIdInput" placeholder="Enter Room ID">
+        <input type="text" id="userNameInput" placeholder="Enter Your Name">
+        <button id="createRoomBtn" onclick="createSession()">Create Room</button>
+        <button id="joinRoomBtn" onclick="joinSession()">Join Room</button>
+    </div>
+
+    <div id="streetViewContainer"></div>
+    <div id="map"></div>
+    <p id="gameStatus">Click on the map to place your guess.</p>
+</div>
+
+<!-- SignalR -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
+
+<script>
+/* ------------------------------------------------------------------
+   BASE SHARED MAP  (location code removed)
+-------------------------------------------------------------------*/
+class SharedMap {
+    constructor(){
+        this.roomId=''; this.userName=''; this.isHost=false;
+        this.connected=false;
+        this.myUserId=Math.floor(Math.random()*10000)+1;
+        this.opponentUserId=null;
+
+        this.map=null;
+        this.myMarker=null;
+        this.peerMarkers={};
+
+        this.peerConnection=null;
+        this.dataChannel=null;
+        this.signalRConnection=null;
+
+        this.initializeMapSession();
+    }
+
+    initializeMapSession(){
+        if(this.map) return;
+        this.map=new maplibregl.Map({
+            container:'map',
+            style:'https://tiles.openfreemap.org/styles/liberty',
+            center:[0,20],  /* neutral center */
+            zoom:2
+        });
+
+        // players set marker by clicking
+        this.map.on('click', (e)=>{
+            this.placeOrMoveMyMarker(e.lngLat.lng,e.lngLat.lat);
+        });
+
+        this.updateStatus('Ready. Create or join a room.');
+    }
+
+    placeOrMoveMyMarker(lng,lat){
+        const label=this.userName||'You';
+        if(!this.myMarker){
+            this.myMarker=new maplibregl.Marker()
+                .setLngLat([lng,lat])
+                .setPopup(new maplibregl.Popup({offset:12}).setText(label))
+                .addTo(this.map);
+            this.myMarker.togglePopup();
+        }else{
+            this.myMarker.setLngLat([lng,lat]);
+            this.myMarker.getPopup().setText(label);
+        }
+        if(this.connected) this.sendMapData('marker-update',{lng,lat,userId:this.myUserId,userName:this.userName});
+    }
+
+    async connectToSignaling(){
+        if(this.signalRConnection) return;
+        const hubUrl=`https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=shared_map_temp`;
+        this.signalRConnection=new signalR.HubConnectionBuilder().withUrl(hubUrl).withAutomaticReconnect().build();
+
+        this.signalRConnection.on("WebRTCPeerJoined",(userName,userId)=>{
+            if(userId!==this.myUserId && !this.connected){
+                this.opponentUserId=userId;
+                if(this.isHost){ this.createOffer(); }
+            }
+        });
+
+        this.signalRConnection.on("WebRTCSignalingMessageReceived",(fromUserId,type,data)=>{
+            if(fromUserId!==this.myUserId){
+                this.opponentUserId=fromUserId;
+                this.handleSignalingMessage(type,data);
+            }
+        });
+
+        await this.signalRConnection.start();
+        this.updateStatus('Connected to signaling server.');
+    }
+
+    async sendSignalingMessage(type,data){
+        if(!this.signalRConnection || !this.opponentUserId) return;
+        await this.signalRConnection.invoke("SendWebRTCSignalingMessage",this.opponentUserId.toString(),type,data);
+    }
+
+    async handleSignalingMessage(type,data){
+        switch(type){
+            case 'offer': await this.handleOffer(data); break;
+            case 'answer': await this.handleAnswer(data); break;
+            case 'ice-candidate': await this.peerConnection.addIceCandidate(data); break;
+        }
+    }
+
+    async createPeerConnection(){
+        if(this.peerConnection) return;
+        this.peerConnection=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+        if(this.isHost){
+            this.dataChannel=this.peerConnection.createDataChannel('mapChannel');
+            this.setupDataChannel(this.dataChannel);
+        }
+        this.peerConnection.ondatachannel=(e)=>this.setupDataChannel(e.channel);
+        this.peerConnection.onicecandidate=(e)=>{ if(e.candidate) this.sendSignalingMessage('ice-candidate',e.candidate); };
+        this.peerConnection.onconnectionstatechange=()=>{
+            if(this.peerConnection.connectionState==='connected'){
+                this.connected=true;
+                if(this.myMarker){
+                    const {lng,lat}=this.myMarker.getLngLat();
+                    this.sendMapData('marker-update',{lng,lat,userId:this.myUserId,userName:this.userName});
+                }
+            }
+        };
+    }
+
+    setupDataChannel(ch){
+        ch.onopen=()=>{ this.connected=true; };
+        ch.onmessage=(e)=>{ const msg=JSON.parse(e.data); this.handleMapMessage(msg); };
+    }
+
+    async createOffer(){
+        await this.createPeerConnection();
+        const offer=await this.peerConnection.createOffer();
+        await this.peerConnection.setLocalDescription(offer);
+        await this.sendSignalingMessage('offer',offer);
+    }
+    async handleOffer(offer){
+        await this.createPeerConnection();
+        await this.peerConnection.setRemoteDescription(offer);
+        const answer=await this.peerConnection.createAnswer();
+        await this.peerConnection.setLocalDescription(answer);
+        await this.sendSignalingMessage('answer',answer);
+    }
+    async handleAnswer(ans){ await this.peerConnection.setRemoteDescription(ans); }
+
+    sendMapData(type,data){
+        if(this.dataChannel && this.dataChannel.readyState==='open'){
+            this.dataChannel.send(JSON.stringify({type,data}));
+        }
+    }
+
+    handleMapMessage(msg){
+        if(msg.type==='marker-update') this.handleMarkerUpdate(msg.data);
+    }
+
+    handleMarkerUpdate(data){
+        if(data.userId===this.myUserId) return;
+        if(!this.peerMarkers[data.userId]){
+            this.peerMarkers[data.userId]=new maplibregl.Marker({color:'#d9534f'})
+                .setLngLat([data.lng,data.lat])
+                .setPopup(new maplibregl.Popup().setText(data.userName||'Peer'))
+                .addTo(this.map);
+        }else{
+            this.peerMarkers[data.userId].setLngLat([data.lng,data.lat]);
+        }
+    }
+
+    updateStatus(t){ document.getElementById('gameStatus').textContent=t; }
+}
+
+/* ------------------------------------------------------------------
+   STREET VIEW GAME
+-------------------------------------------------------------------*/
+class StreetViewGame extends SharedMap {
+    constructor(){
+        super();
+        this.properties=[];
+        this.currentProperty=null;
+        this.guesses={};
+    }
+
+    async loadRandomStreetView(){
+        try{
+            const res=await fetch("https://api.tripgeo.com/api/rentcast");
+            const data=await res.json();
+            this.properties=data.filter(p=>p.streetView && p.streetView.hasStreetView);
+            if(!this.properties.length){ this.updateStatus('No street-view data available'); return; }
+
+            this.currentProperty=this.properties[Math.floor(Math.random()*this.properties.length)];
+            const pano=this.currentProperty.streetView;
+
+            const imgUrl=`https://maps.googleapis.com/maps/api/streetview?size=600x400&pano=${pano.panoId}&heading=${pano.direction}&pitch=0&key=YOUR_GOOGLE_KEY`;
+            document.getElementById('streetViewContainer').innerHTML=
+                `<img src="${imgUrl}" alt="Street View" style="max-width:100%;border-radius:8px;border:1px solid #ccc;">`;
+
+            this.updateStatus('Look at the street-view above and click on the map to guess.');
+        }catch(err){ console.error(err); this.updateStatus('Failed to load street-view data'); }
+    }
+
+    placeOrMoveMyMarker(lng,lat){
+        super.placeOrMoveMyMarker(lng,lat);
+        this.guesses[this.myUserId]={lng,lat};
+        this.sendMapData('guess',{lng,lat,userId:this.myUserId,userName:this.userName});
+        this.checkForBothGuesses();
+    }
+
+    handleMapMessage(msg){
+        if(msg.type==='guess') this.handlePeerGuess(msg.data);
+        else super.handleMapMessage(msg);
+    }
+
+    handlePeerGuess(data){
+        if(data.userId===this.myUserId) return;
+        this.guesses[data.userId]={lng:data.lng,lat:data.lat};
+        if(!this.peerMarkers[data.userId]){
+            this.peerMarkers[data.userId]=new maplibregl.Marker({color:'#d9534f'})
+                .setLngLat([data.lng,data.lat])
+                .setPopup(new maplibregl.Popup().setText(data.userName||'Peer'))
+                .addTo(this.map);
+        }else this.peerMarkers[data.userId].setLngLat([data.lng,data.lat]);
+
+        this.checkForBothGuesses();
+    }
+
+    checkForBothGuesses(){
+        if(!this.currentProperty) return;
+        if(Object.keys(this.guesses).length<2) return;
+
+        const actual={lng:this.currentProperty.longitude, lat:this.currentProperty.latitude};
+        const res=[];
+        for(const [uid,g] of Object.entries(this.guesses)){
+            res.push({uid, distKm:this.haversine(g.lat,g.lng,actual.lat,actual.lng)});
+        }
+        const winner=res[0].distKm<res[1].distKm?res[0]:res[1];
+        this.updateStatus(`Round over! Actual location: ${this.currentProperty.formattedAddress}.
+            ${winner.uid===this.myUserId?this.userName:'Opponent'} was closer.`);
+
+        new maplibregl.Marker({color:'green'})
+            .setLngLat([actual.lng,actual.lat])
+            .setPopup(new maplibregl.Popup().setText('Actual Location'))
+            .addTo(this.map).togglePopup();
+    }
+
+    haversine(lat1,lon1,lat2,lon2){
+        const R=6371, toRad=x=>x*Math.PI/180;
+        const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+        const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+        return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    }
+}
+
+/* ------------------------------------------------------------------
+   GAME INSTANCE & ROOM JOIN / CREATE
+-------------------------------------------------------------------*/
+const game=new StreetViewGame();
+
+async function createSession(){
+    const room=document.getElementById('roomIdInput').value.trim();
+    const name=document.getElementById('userNameInput').value.trim();
+    if(!room || !name){ alert('Enter room & name'); return; }
+    game.roomId=room; game.userName=name; game.isHost=true;
+
+    await game.connectToSignaling();
+    await game.signalRConnection.invoke("JoinWebRTCSession",`map_${room}`,game.myUserId);
+    game.updateStatus(`Room "${room}" created. Waiting for player…`);
+    document.getElementById('createRoomBtn').disabled=true;
+    document.getElementById('joinRoomBtn').disabled=true;
+
+    game.loadRandomStreetView();   // host starts the round
+}
+
+async function joinSession(){
+    const room=document.getElementById('roomIdInput').value.trim();
+    const name=document.getElementById('userNameInput').value.trim();
+    if(!room || !name){ alert('Enter room & name'); return; }
+    game.roomId=room; game.userName=name; game.isHost=false;
+
+    await game.connectToSignaling();
+    await game.signalRConnection.invoke("JoinWebRTCSession",`map_${room}`,game.myUserId);
+    game.updateStatus(`Joining room "${room}"…`);
+    document.getElementById('createRoomBtn').disabled=true;
+    document.getElementById('joinRoomBtn').disabled=true;
+}
+</script>
+</body>
+</html>
