@@ -171,9 +171,9 @@ class StreetViewGame extends SharedMap{
   /* reusable display method */
   showStreetView(property){
     this.currentProperty=property;
-    const pano=property.streetView;
-    const imgUrl=`https://maps.googleapis.com/maps/api/streetview?size=600x400&pano=${pano.panoId}&heading=${pano.direction}&pitch=0&key=YOUR_GOOGLE_KEY`;
-    document.getElementById('streetViewContainer').innerHTML=
+    const pano = property.streetView;
+const imgUrl = `https://api.tripgeo.com/api/StreetViewImage/${pano.panoId}_${pano.direction}`;
+document.getElementById('streetViewContainer').innerHTML=
       `<img src="${imgUrl}" alt="Street View"
              style="max-width:100%;border-radius:8px;border:1px solid #ccc;">`;
     this.updateStatus("Look at the street-view above and click on the map to guess.");
