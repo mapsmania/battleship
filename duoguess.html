@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Tripgeo WebRTC Street-View Game</title>
+<title>TripGeo WebRTC Street-View Game</title>
 
 <link href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
@@ -64,12 +64,12 @@ class StreetViewGame {
     this.map=null;
     this.myMarker=null;
     this.peerMarkers={};
-    this.guesses={}; // { userId: { lng: X, lat: Y, userName: Z }, ... }
+    this.guesses={}; // { userId: { lng, lat, userName }, ... }
     this.currentProperty=null;
     this.signalRConnection=null;
     this.opponentUserId=null;
     this.correctMarker=null;
-    this.myGuessSubmitted=false; // Flag to lock the guess
+    this.myGuessSubmitted=false;
 
     this.initializeMap();
   }
@@ -81,48 +81,32 @@ class StreetViewGame {
       center:[0,0],
       zoom:2
     });
-    // The first click is the final guess submission
+    // Single click submits guess
     this.map.on('click', e => this.placeOrMoveMyMarker(e.lngLat.lng,e.lngLat.lat));
   }
 
   placeOrMoveMyMarker(lng,lat){
-    const label=this.userName||'You';
-
-    // Prevent marker placement/moving if guess is already submitted
-    if (this.myGuessSubmitted) {
+    if(this.myGuessSubmitted){
       this.updateStatus('Guess locked. Waiting for the opponent.');
-      return; 
+      return;
     }
 
-    // Place the visual marker (only happens on the first click)
-    if (!this.myMarker){
+    if(!this.myMarker){
       this.myMarker=new maplibregl.Marker({color:'#00796b'})
         .setLngLat([lng,lat])
-        .setPopup(new maplibregl.Popup({offset:12}).setText(label))
+        .setPopup(new maplibregl.Popup({offset:12}).setText(this.userName||'You'))
         .addTo(this.map);
       this.myMarker.togglePopup();
-    } 
-    // Since we are using a single-click model, no need for the 'else' block
-    
-    // Process and submit the guess immediately
+    }
+
     this.myGuessSubmitted=true;
-    const guessData={
-      userId:this.myUserId,
-      userName:this.userName,
-      lng:lng,
-      lat:lat
-    };
-    
-    // Store my guess locally
+    const guessData={ userId:this.myUserId, userName:this.userName, lng, lat };
     this.guesses[this.myUserId]=guessData;
-    
-    // Send the guess submission to the opponent/host
+
     this.sendMapData('guess-submit',guessData);
-    
     this.updateStatus('Guess submitted. Waiting for the opponent...');
-    
-    // Host check for game end (if opponent has already submitted)
-    if(this.isHost&&Object.keys(this.guesses).length===2){
+
+    if(this.isHost && Object.keys(this.guesses).length===2){
       this.calculateWinner();
     }
   }
@@ -136,7 +120,7 @@ class StreetViewGame {
       .withAutomaticReconnect()
       .build();
 
-    // Peer joined
+    // Handle peer joined
     this.signalRConnection.on('WebRTCPeerJoined',(userName,userId)=>{
       if(userId!==this.myUserId){
         this.opponentUserId=userId;
@@ -149,64 +133,57 @@ class StreetViewGame {
       }
     });
 
-    // Received street-view, guess, or results
-    this.signalRConnection.on('WebRTCSignalingMessageReceived',async(fromUserId,messageType,messageData)=>{
-      if(fromUserId!==this.myUserId){
-        if(messageType==='street-view'){
-          this.showStreetView(messageData);
-        } else if (messageType === 'guess-submit') {
-          this.handleGuessSubmission(messageData);
-        } else if (messageType === 'game-over') {
-          this.showResults(messageData);
-        }
-      }
+    // Handle incoming messages
+    this.signalRConnection.on('WebRTCSignalingMessageReceived',(fromUserId,type,data)=>{
+      if(fromUserId===this.myUserId) return;
+
+      if(type==='street-view') this.showStreetView(data);
+      else if(type==='guess-submit') this.handleGuessSubmission(data);
+      else if(type==='game-over') this.showResults(data);
     });
 
     await this.signalRConnection.start();
-    this.updateStatus('Connected to Tripgeo hub.');
+    this.updateStatus('Connected to TripGeo hub.');
   }
 
-  async sendStreetView(property){
+  async sendStreetView(feature){
     if(!this.opponentUserId) return;
-    await this.signalRConnection.invoke('SendWebRTCSignalingMessage',this.opponentUserId.toString(),'street-view',property);
+    await this.signalRConnection.invoke('SendWebRTCSignalingMessage',this.opponentUserId.toString(),'street-view',feature);
   }
 
   async loadRandomStreetView(){
     try{
-      const res=await fetch('https://api.tripgeo.com/api/rentcast');
+      const res=await fetch('https://api.tripgeo.com/feed/QV97GG/main');
       const data=await res.json();
-      const properties=data.filter(p=>p.streetView && p.streetView.hasStreetView);
-      if(!properties.length){ this.updateStatus('No street-view available'); return; }
+      const features=data.Features;
+      if(!features || !features.length){
+        this.updateStatus('No locations available in the feed.');
+        return;
+      }
 
-      const property=properties[Math.floor(Math.random()*properties.length)];
-      this.currentProperty=property;
-      this.showStreetView(property);
+      const feature=features[Math.floor(Math.random()*features.length)];
+      this.currentProperty=feature;
+      this.showStreetView(feature);
 
-      if(this.isHost) await this.sendStreetView(property);
+      if(this.isHost) await this.sendStreetView(feature);
     }catch(err){
       console.error(err);
-      this.updateStatus('Failed to load street-view data.');
+      this.updateStatus('Failed to load feed data.');
     }
   }
 
-  showStreetView(property){
-    this.currentProperty=property;
-    const pano=property.streetView;
-    const imgUrl=`https://api.tripgeo.com/api/StreetViewImage/${pano.panoId}_${pano.direction}`;
+  showStreetView(feature){
+    this.currentProperty=feature;
+
+    const imgUrl=`https://api.tripgeo.com/api/StreetViewImage/${feature.StreetPanoID}_${Math.round(feature.StreetHeading)}`;
     document.getElementById('streetViewContainer').innerHTML=`<img src="${imgUrl}" alt="Street View">`;
     this.updateStatus('Look at the street-view above and click on the map to place your guess.');
-    
-    // Reset state for new round
+
+    // Reset for new round
     this.guesses={};
     this.myGuessSubmitted=false;
-    if(this.myMarker){
-      this.myMarker.remove();
-      this.myMarker=null;
-    }
-    if(this.correctMarker){
-      this.correctMarker.remove();
-      this.correctMarker=null;
-    }
+    if(this.myMarker){ this.myMarker.remove(); this.myMarker=null; }
+    if(this.correctMarker){ this.correctMarker.remove(); this.correctMarker=null; }
     Object.values(this.peerMarkers).forEach(m=>m.remove());
     this.peerMarkers={};
   }
@@ -216,102 +193,82 @@ class StreetViewGame {
     this.signalRConnection.invoke('SendWebRTCSignalingMessage',this.opponentUserId.toString(),type,data).catch(console.error);
   }
 
-  handleGuessSubmission(data) {
-    // Place the opponent's marker and store their submission
-    if (data.userId !== this.myUserId) {
-      const popup = new maplibregl.Popup({ offset: 12 }).setText(data.userName || 'Peer');
-      this.peerMarkers[data.userId] = new maplibregl.Marker({ color: '#d9534f' })
-        .setLngLat([data.lng, data.lat])
+  handleGuessSubmission(data){
+    if(data.userId!==this.myUserId){
+      const popup=new maplibregl.Popup({offset:12}).setText(data.userName||'Peer');
+      this.peerMarkers[data.userId]=new maplibregl.Marker({color:'#d9534f'})
+        .setLngLat([data.lng,data.lat])
         .setPopup(popup)
         .addTo(this.map);
       this.peerMarkers[data.userId].togglePopup();
-
-      this.guesses[data.userId] = { lng: data.lng, lat: data.lat, userName: data.userName };
+      this.guesses[data.userId]={lng:data.lng,lat:data.lat,userName:data.userName};
     }
-    
-    this.updateStatus(`${data.userName} has submitted their guess. Waiting for ${Object.keys(this.guesses).length === 1 ? 'you' : 'host calculation'}...`);
-    
-    // Check if both players have submitted (HOST ONLY)
-    if (this.isHost && Object.keys(this.guesses).length === 2) {
+
+    this.updateStatus(`${data.userName} has submitted their guess. Waiting for ${Object.keys(this.guesses).length===1?'you':'host calculation'}...`);
+
+    if(this.isHost && Object.keys(this.guesses).length===2){
       this.calculateWinner();
     }
   }
 
-  calculateWinner() {
-    if (!this.currentProperty || Object.keys(this.guesses).length < 2) return;
-    
-    const { panoramaLng: correctLng, panoramaLat: correctLat } = this.currentProperty.streetView;
-    const players = Object.keys(this.guesses);
-    
-    let winnerId = null;
-    let minDistance = Infinity;
-    const results = {};
-    
-    players.forEach(userId => {
-      const guess = this.guesses[userId];
-      const distance = this.calculateDistance(correctLat, correctLng, guess.lat, guess.lng);
-      
-      results[userId] = { distance: distance, userName: guess.userName };
-      
-      if (distance < minDistance) {
-        minDistance = distance;
-        winnerId = userId;
-      }
+  calculateWinner(){
+    if(!this.currentProperty || Object.keys(this.guesses).length<2) return;
+
+    const correctLat=this.currentProperty.Points[0].Lat;
+    const correctLng=this.currentProperty.Points[0].Lng;
+
+    let winnerId=null,minDistance=Infinity;
+    const results={};
+
+    Object.keys(this.guesses).forEach(uid=>{
+      const g=this.guesses[uid];
+      const d=this.calculateDistance(correctLat,correctLng,g.lat,g.lng);
+      results[uid]={distance:d,userName:g.userName};
+      if(d<minDistance){ minDistance=d; winnerId=uid; }
     });
 
-    results.correctLocation = { lng: correctLng, lat: correctLat };
-    results.winnerId = winnerId;
-    
-    // Send game over message and show results
-    this.sendMapData('game-over', results);
+    results.correctLocation={lat:correctLat,lng:correctLng};
+    results.winnerId=winnerId;
+
+    this.sendMapData('game-over',results);
     this.showResults(results);
   }
 
-  showResults(results) {
-    const { correctLocation: { lng: correctLng, lat: correctLat }, winnerId } = results;
-    
-    // Add the correct location marker
-    this.correctMarker = new maplibregl.Marker({ color: '#00cc00' }) // Green
-      .setLngLat([correctLng, correctLat])
-      .setPopup(new maplibregl.Popup({ offset: 12 }).setText('Correct Location'))
+  showResults(results){
+    const {correctLocation:{lat:clat,lng:clng},winnerId}=results;
+
+    this.correctMarker=new maplibregl.Marker({color:'#00cc00'})
+      .setLngLat([clng,clat])
+      .setPopup(new maplibregl.Popup({offset:12}).setText('Correct Location'))
       .addTo(this.map);
     this.correctMarker.togglePopup();
-    
-    // Center the map
-    this.map.flyTo({ center: [correctLng, correctLat], zoom: 6 });
-    
-    const winner = results[winnerId].userName;
-    let statusMessage = `Game Over! The correct location is marked in <strong>green</strong>. <strong>${winner}</strong> wins!`;
-   
-    // Append individual results
-    Object.keys(results).forEach(userId => {
-        if (userId !== 'correctLocation' && userId !== 'winnerId') {
-            const distanceKm = (results[userId].distance / 1000).toFixed(2);
-            statusMessage += ` | <strong>${results[userId].userName}</strong> was <strong>${distanceKm} km</strong> away.`;
-        }
+
+    this.map.flyTo({center:[clng,clat],zoom:6});
+
+    let msg=`Game Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
+    Object.keys(results).forEach(uid=>{
+      if(uid!=='correctLocation' && uid!=='winnerId'){
+        const km=(results[uid].distance/1000).toFixed(2);
+        msg+=` | <strong>${results[uid].userName}</strong> was <strong>${km} km</strong> away.`;
+      }
     });
-    
-    this.updateStatus(statusMessage);
+
+    this.updateStatus(msg);
   }
 
-  // Haversine formula (Distance in meters)
-  calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // metres
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
+  calculateDistance(lat1,lon1,lat2,lon2){
+    const R=6371e3;
+    const φ1=lat1*Math.PI/180;
+    const φ2=lat2*Math.PI/180;
+    const Δφ=(lat2-lat1)*Math.PI/180;
+    const Δλ=(lon2-lon1)*Math.PI/180;
 
-    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) *
-      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    const distance = R * c; 
-    return distance;
+    const a=Math.sin(Δφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(Δλ/2)**2;
+    const c=2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    return R*c;
   }
-  
-  updateStatus(msg) { document.getElementById('gameStatus').innerHTML=msg; }
+
+  updateStatus(msg){ document.getElementById('gameStatus').innerHTML=msg; }
 }
 
 const game=new StreetViewGame();
@@ -320,9 +277,7 @@ async function createSession(){
   const room=document.getElementById('roomIdInput').value.trim();
   const name=document.getElementById('userNameInput').value.trim();
   if(!room||!name){alert('Enter room and name');return;}
-  game.roomId=room;
-  game.userName=name;
-  game.isHost=true;
+  game.roomId=room; game.userName=name; game.isHost=true;
   await game.connectToTripgeoHub();
   await game.signalRConnection.invoke('JoinWebRTCSession',`map_${room}`,game.myUserId);
   game.updateStatus(`Room "${room}" created. Waiting for players...`);
@@ -334,9 +289,7 @@ async function joinSession(){
   const room=document.getElementById('roomIdInput').value.trim();
   const name=document.getElementById('userNameInput').value.trim();
   if(!room||!name){alert('Enter room and name');return;}
-  game.roomId=room;
-  game.userName=name;
-  game.isHost=false;
+  game.roomId=room; game.userName=name; game.isHost=false;
   await game.connectToTripgeoHub();
   await game.signalRConnection.invoke('JoinWebRTCSession',`map_${room}`,game.myUserId);
   game.updateStatus(`Joining room "${room}"...`);
