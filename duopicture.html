@@ -263,7 +263,7 @@
 
       handleGuessSubmission(data) {
         if (data.userId !== this.myUserId) {
-          const popup = new maplibregl.Popup({ offset: 12 }).setText(data.userName || 'Peer');
+          const popup = new maplibregl.Popup({ offset: 12, closeButton: false}).setText(data.userName || 'Peer');
           this.peerMarkers[data.userId] = new maplibregl.Marker({ color: '#d9534f' })
             .setLngLat([data.lng, data.lat])
             .setPopup(popup)
