@@ -276,7 +276,7 @@ const paintingLocations = [
     name: "Landscape with the Ruins of the Castle of Egmond",
     lat: 52.6216328,
     lng: 4.6545006,
-    imageUrl: "images/Egmond,jpg",
+    imageUrl: "images/Egmond.jpg",
     details: "(1650-55) by Jacob van Ruisdael. <br><br> From the <a href='https://www.artic.edu/artworks/60755/landscape-with-the-ruins-of-the-castle-of-egmond'>Art Institute Chicago</a>.",
   },
   {
