@@ -59,7 +59,7 @@ const paintingLocations = [
     name: "Charing Cross Bridge, London",
     lat: 51.506298,
     lng: -0.120496,
-    imageUrl: "images/charing_cross_bridge%2C_london_1985.64.32.jpg",
+    imageUrl: "images/charing_cross.jpg",
     details: "(1890) by Camille Pissarro. <br><br> From the <a href='https://www.nga.gov/collection/art-object-page.66430.html'>National Gallery of Art</a>.",
   },
   {
