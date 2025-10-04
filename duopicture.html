@@ -254,16 +254,18 @@
         this.currentProperty = painting;
 
         // Construct the image HTML using the painting data properties
-        const imgHtml = `
-            <img 
-                src="${painting.imageUrl}" 
-                alt="${painting.name}" 
-                onclick="this.requestFullscreen()" 
-                title="${painting.name}" 
-                width="400">
-            <p>${painting.name} ${painting.details}</p>
-        `;
+       // Define the correct root path for your images
+const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/';
 
+const imgHtml = `
+    <img 
+        src="${BASE_IMAGE_URL}${painting.imageUrl}" // 
+        alt="${painting.name}" 
+        onclick="this.requestFullscreen()" 
+        title="${painting.name}" 
+        width="400">
+    <p>${painting.name} ${painting.details}</p>
+`;
         document.getElementById('imageViewContainer').innerHTML = imgHtml;
         this.updateStatus('Look at the painting above and click on the map to place your guess.');
 
