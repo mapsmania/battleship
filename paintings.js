@@ -52,7 +52,7 @@ const paintingLocations = [
     name: "High Bridge at Night, New York City",
     lat: 40.8422517,
     lng: -73.9304704,
-    imageUrl: "images/high_bridge_at_night%2C_new_york_city_2016.129.1.jpg",
+    imageUrl: "images/high_bridge_at_night.jpg",
     details: "(c1915) by Ernest Lawson. <br><br> From the <a href='https://www.nga.gov/collection/art-object-page.206651.html'>National Gallery of Art</a>.",
   },
   {
