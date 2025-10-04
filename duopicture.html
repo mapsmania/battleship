@@ -14,15 +14,16 @@
 
   <style>
     body {
-      font-family: system-ui, Roboto, Arial, sans-serif;
-      background: #f0f2f5;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-      text-align: center;
-    }
+  font-family: system-ui, Roboto, Arial, sans-serif;
+  background: #f0f2f5;
+  display: flex;
+  justify-content: center;    
+  min-height: 100vh;          /* allow page to grow vertically */
+  margin: 0;
+  text-align: center;
+  overflow-y: auto;           /* enable vertical scroll if needed */
+}
+
 
     .container {
       background: #fff;
