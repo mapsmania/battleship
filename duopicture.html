@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -8,8 +9,8 @@
   <link href="https://unpkg.com/maplibre-gl/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.1/signalr.min.js"></script>
-  
-  <script src="paintings.js"></script> 
+
+  <script src="paintings.js"></script>
 
   <style>
     body {
@@ -72,17 +73,16 @@
       margin-bottom: 1rem;
     }
 
-    /* Adjusted container ID to be more generic for painting image */
     #imageViewContainer img {
       max-width: 100%;
-      height: auto; /* Ensure image scales */
+      height: auto;
       border-radius: 8px;
       border: 1px solid #ccc;
-      cursor: zoom-in; /* Hint for fullscreen option */
+      cursor: zoom-in;
     }
-    
+
     #imageViewContainer {
-        margin-bottom: 1rem;
+      margin-bottom: 1rem;
     }
 
     #gameStatus {
@@ -125,7 +125,7 @@
         this.map = null;
         this.myMarker = null;
         this.peerMarkers = {};
-        this.guesses = {}; // { userId: { lng, lat, userName }, ... }
+        this.guesses = {};
         this.currentProperty = null;
         this.signalRConnection = null;
         this.opponentUserId = null;
@@ -142,7 +142,6 @@
           center: [0, 0],
           zoom: 2
         });
-        // Single click submits guess
         this.map.on('click', e => this.placeOrMoveMyMarker(e.lngLat.lng, e.lngLat.lat));
       }
 
@@ -153,24 +152,15 @@
         }
 
         if (!this.myMarker) {
-          this.myMarker = new maplibregl.Marker({
-              color: '#00796b'
-            })
+          this.myMarker = new maplibregl.Marker({ color: '#00796b' })
             .setLngLat([lng, lat])
-            .setPopup(new maplibregl.Popup({
-              offset: 12
-            }).setText(this.userName || 'You'))
+            .setPopup(new maplibregl.Popup({ offset: 12 }).setText(this.userName || 'You'))
             .addTo(this.map);
           this.myMarker.togglePopup();
         }
 
         this.myGuessSubmitted = true;
-        const guessData = {
-          userId: this.myUserId,
-          userName: this.userName,
-          lng,
-          lat
-        };
+        const guessData = { userId: this.myUserId, userName: this.userName, lng, lat };
         this.guesses[this.myUserId] = guessData;
 
         this.sendMapData('guess-submit', guessData);
@@ -184,20 +174,17 @@
       async connectToTripgeoHub() {
         if (this.signalRConnection) return;
 
-        const hubUrl =
-          `https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=shared_map_temp`;
+        const hubUrl = `https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=shared_map_temp`;
         this.signalRConnection = new signalR.HubConnectionBuilder()
           .withUrl(hubUrl)
           .withAutomaticReconnect()
           .build();
 
-        // Handle peer joined
         this.signalRConnection.on('WebRTCPeerJoined', (userName, userId) => {
           if (userId !== this.myUserId) {
             this.opponentUserId = userId;
             if (this.isHost) {
               this.updateStatus(`${userName} joined. Loading painting...`);
-              // NEW: Call the function to load a random painting
               this.loadRandomPainting();
             } else {
               this.updateStatus(`${userName} joined. Waiting for painting...`);
@@ -205,11 +192,9 @@
           }
         });
 
-        // Handle incoming messages
         this.signalRConnection.on('WebRTCSignalingMessageReceived', (fromUserId, type, data) => {
           if (fromUserId === this.myUserId) return;
 
-          // NEW: Message type is now 'painting-data'
           if (type === 'painting-data') this.showPainting(data);
           else if (type === 'guess-submit') this.handleGuessSubmission(data);
           else if (type === 'game-over') this.showResults(data);
@@ -219,66 +204,50 @@
         this.updateStatus('Connected to TripGeo hub.');
       }
 
-      // NEW: Function to send painting data to peer
       async sendPaintingData(feature) {
         if (!this.opponentUserId) return;
-        // NEW: Sending 'painting-data' type
         await this.signalRConnection.invoke('SendWebRTCSignalingMessage', this.opponentUserId.toString(), 'painting-data', feature);
       }
 
-      // NEW: Function to load a random painting from the local array
       async loadRandomPainting() {
         try {
-          // Check if paintingLocations is available (from paintings.js)
           if (typeof paintingLocations === 'undefined' || !paintingLocations.length) {
             this.updateStatus('No painting locations available. Check paintings.js.');
             return;
           }
 
           const painting = paintingLocations[Math.floor(Math.random() * paintingLocations.length)];
-          this.currentProperty = painting; // Store the selected painting
+          this.currentProperty = painting;
 
           this.showPainting(painting);
 
           if (this.isHost) await this.sendPaintingData(painting);
-
         } catch (err) {
           console.error(err);
           this.updateStatus('Failed to load painting data.');
         }
       }
 
-      // NEW: Function to display the painting
       showPainting(painting) {
         this.currentProperty = painting;
 
-        // Construct the image HTML using the painting data properties
-       // Define the correct root path for your images
-const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/';
-
-const imgHtml = `
-    <img 
-        src="${BASE_IMAGE_URL}${painting.imageUrl}" // 
-        alt="${painting.name}" 
-        onclick="this.requestFullscreen()" 
-        title="${painting.name}" 
-        width="400">
-    <p>${painting.name} ${painting.details}</p>
-`;
+        const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/';
+        const imgHtml = `
+          <img 
+            src="${BASE_IMAGE_URL}${painting.imageUrl}"
+            alt="${painting.name}" 
+            onclick="this.requestFullscreen()" 
+            title="${painting.name}" 
+            width="400">
+          <p>${painting.name} ${painting.details}</p>
+        `;
         document.getElementById('imageViewContainer').innerHTML = imgHtml;
         this.updateStatus('Look at the painting above and click on the map to place your guess.');
 
-        // Reset for new round
         this.guesses = {};
         this.myGuessSubmitted = false;
-        if (this.myMarker) {
-          this.myMarker.remove();
-          this.myMarker = null;
-        }
-        if (this.correctMarker) {
-          this.correctMarker.remove();
-          this.correctMarker = null;
-        }
+        if (this.myMarker) { this.myMarker.remove(); this.myMarker = null; }
+        if (this.correctMarker) { this.correctMarker.remove(); this.correctMarker = null; }
         Object.values(this.peerMarkers).forEach(m => m.remove());
         this.peerMarkers = {};
       }
@@ -290,25 +259,17 @@ const imgHtml = `
 
       handleGuessSubmission(data) {
         if (data.userId !== this.myUserId) {
-          const popup = new maplibregl.Popup({
-            offset: 12
-          }).setText(data.userName || 'Peer');
-          this.peerMarkers[data.userId] = new maplibregl.Marker({
-              color: '#d9534f'
-            })
+          const popup = new maplibregl.Popup({ offset: 12 }).setText(data.userName || 'Peer');
+          this.peerMarkers[data.userId] = new maplibregl.Marker({ color: '#d9534f' })
             .setLngLat([data.lng, data.lat])
             .setPopup(popup)
             .addTo(this.map);
           this.peerMarkers[data.userId].togglePopup();
-          this.guesses[data.userId] = {
-            lng: data.lng,
-            lat: data.lat,
-            userName: data.userName
-          };
+          this.guesses[data.userId] = { lng: data.lng, lat: data.lat, userName: data.userName };
         }
 
         this.updateStatus(
-          `${data.userName} has submitted their guess. Waiting for ${Object.keys(this.guesses).length===1?'you':'host calculation'}...`
+          `${data.userName} has submitted their guess. Waiting for ${Object.keys(this.guesses).length === 1 ? 'you' : 'host calculation'}...`
         );
 
         if (this.isHost && Object.keys(this.guesses).length === 2) {
@@ -319,31 +280,23 @@ const imgHtml = `
       calculateWinner() {
         if (!this.currentProperty || Object.keys(this.guesses).length < 2) return;
 
-        // NEW: Get location from the painting object properties
         const correctLat = this.currentProperty.lat;
         const correctLng = this.currentProperty.lng;
 
-        let winnerId = null,
-          minDistance = Infinity;
+        let winnerId = null, minDistance = Infinity;
         const results = {};
 
         Object.keys(this.guesses).forEach(uid => {
           const g = this.guesses[uid];
           const d = this.calculateDistance(correctLat, correctLng, g.lat, g.lng);
-          results[uid] = {
-            distance: d,
-            userName: g.userName
-          };
+          results[uid] = { distance: d, userName: g.userName };
           if (d < minDistance) {
             minDistance = d;
             winnerId = uid;
           }
         });
 
-        results.correctLocation = {
-          lat: correctLat,
-          lng: correctLng
-        };
+        results.correctLocation = { lat: correctLat, lng: correctLng };
         results.winnerId = winnerId;
 
         this.sendMapData('game-over', results);
@@ -351,31 +304,17 @@ const imgHtml = `
       }
 
       showResults(results) {
-        const {
-          correctLocation: {
-            lat: clat,
-            lng: clng
-          },
-          winnerId
-        } = results;
+        const { correctLocation: { lat: clat, lng: clng }, winnerId } = results;
 
-        this.correctMarker = new maplibregl.Marker({
-            color: '#00cc00'
-          })
+        this.correctMarker = new maplibregl.Marker({ color: '#00cc00' })
           .setLngLat([clng, clat])
-          .setPopup(new maplibregl.Popup({
-            offset: 12
-          }).setText('Correct Location'))
+          .setPopup(new maplibregl.Popup({ offset: 12 }).setText('Correct Location'))
           .addTo(this.map);
         this.correctMarker.togglePopup();
 
-        this.map.flyTo({
-          center: [clng, clat],
-          zoom: 6
-        });
+        this.map.flyTo({ center: [clng, clat], zoom: 6 });
 
-        let msg =
-          `Game Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
+        let msg = `Game Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
         Object.keys(results).forEach(uid => {
           if (uid !== 'correctLocation' && uid !== 'winnerId') {
             const km = (results[uid].distance / 1000).toFixed(2);
@@ -384,6 +323,14 @@ const imgHtml = `
         });
 
         this.updateStatus(msg);
+
+        // ⬇️ Auto-start next round after 5 seconds (host only)
+        if (this.isHost) {
+          setTimeout(() => {
+            this.updateStatus('Starting a new round...');
+            this.loadRandomPainting();
+          }, 5000);
+        }
       }
 
       calculateDistance(lat1, lon1, lat2, lon2) {
@@ -393,7 +340,9 @@ const imgHtml = `
         const Δφ = (lat2 - lat1) * Math.PI / 180;
         const Δλ = (lon2 - lon1) * Math.PI / 180;
 
-        const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+        const a = Math.sin(Δφ / 2) ** 2 +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ / 2) ** 2;
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
       }
@@ -440,5 +389,4 @@ const imgHtml = `
     }
   </script>
 </body>
-
 </html>
