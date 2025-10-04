@@ -376,7 +376,7 @@ const imgHtml = `
         });
 
         let msg =
-          `Game Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
+          `Round Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
         Object.keys(results).forEach(uid => {
           if (uid !== 'correctLocation' && uid !== 'winnerId') {
             const km = (results[uid].distance / 1000).toFixed(2);
@@ -386,6 +386,14 @@ const imgHtml = `
 
         this.updateStatus(msg);
       }
+
+      // start new round
+  if (this.isHost) {
+    setTimeout(() => {
+      this.updateStatus('Starting a new round...');
+      this.loadRandomPainting();      // host picks & shares a new painting
+    }, 5000); // wait 5 seconds after showing results
+  }
 
       calculateDistance(lat1, lon1, lat2, lon2) {
         const R = 6371e3;
