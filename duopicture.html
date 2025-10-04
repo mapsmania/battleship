@@ -74,12 +74,15 @@
     }
 
     #imageViewContainer img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      cursor: zoom-in;
-    }
+  display: block;            /* removes inline spacing */
+  max-width: 100%;           /* don’t exceed container width */
+  height: auto;              /* preserve aspect ratio */
+  margin: 0 auto 1rem auto;  /* center the image */
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  cursor: zoom-in;
+}
+
 
     #imageViewContainer {
       margin-bottom: 1rem;
