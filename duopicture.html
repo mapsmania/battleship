@@ -12,15 +12,159 @@
 
   <script src="paintings.js"></script>
 
-    <style>
-  body { font-family: system-ui, Roboto, Arial, sans-serif; background: #f0f2f5; display: flex; justify-content: center; min-height: 100vh; /* allow page to grow vertically */ margin: 0; text-align: center; overflow-y: auto; /* enable vertical scroll if needed */ } .container { background: #fff; padding: 1.5rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, .12); width: 90%; max-width: 900px; } h1 { color: #00796b; margin-top: 0 } #connectionPanel { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 1rem; } #connectionPanel input, #connectionPanel button { padding: .5rem .8rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 8px; } #connectionPanel button { background: #00796b; color: #fff; border: none; cursor: pointer; } #connectionPanel button:disabled { background: #9e9e9e } #map { height: 500px; width: 100%; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 1rem; } #imageViewContainer img { display: block; /* removes inline spacing */ max-width: 100%; /* don’t exceed container width */ height: auto; /* preserve aspect ratio */ margin: 0 auto 1rem auto; /* center the image */ border-radius: 8px; border: 1px solid #ccc; cursor: zoom-in; } #imageViewContainer { margin-bottom: 1rem; } #gameStatus { margin-top: 1rem; font-weight: 500; color: #555; min-height: 1.5rem } @media(max-width:600px) { #map { height: 70vh } } </style>
-    </head>
+  <style>
+    body {
+      font-family: system-ui, Roboto, Arial, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      /* allow page to grow vertically */
+      margin: 0;
+      text-align: center;
+      overflow-y: auto;
+      /* enable vertical scroll if needed */
+    }
+
+    .container {
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
+      width: 90%;
+      max-width: 900px;
+    }
+
+    h1 {
+      color: #00796b;
+      margin-top: 0
+    }
+
+    #connectionPanel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+
+    #connectionPanel input,
+    #connectionPanel button {
+      padding: .5rem .8rem;
+      font-size: 1rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    #connectionPanel button {
+      background: #00796b;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+
+    #connectionPanel button:disabled {
+      background: #9e9e9e
+    }
+
+    /* * NEW FLEX CONTAINER FOR DESKTOP LAYOUT 🖼️↔️🗺️
+    * This wrapper is key for the side-by-side layout.
+    */
+    .content-area {
+      display: flex;
+      gap: 1.5rem;
+      /* Space between image and map */
+      margin-bottom: 1rem;
+      /* space below content */
+    }
+
+    #map {
+      height: 500px;
+      flex: 1;
+      /* Map takes up equal space */
+      border-radius: 8px;
+      border: 1px solid #ddd;
+    }
+
+    #imageViewContainer {
+      flex: 1;
+      /* Image view takes up equal space */
+      /* Note: Removed margin-bottom since it's now in .content-area */
+    }
+
+    #imageViewContainer img {
+      display: block;
+      /* removes inline spacing */
+      width: 100%;
+      /* Use 100% of the flex item width */
+      height: auto;
+      /* preserve aspect ratio */
+      margin: 0 auto .5rem auto;
+      /* center the image */
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      cursor: zoom-in;
+    }
+
+    #imageViewContainer p {
+      margin-top: 0;
+    }
+
+    #gameStatus {
+      margin-top: 1rem;
+      font-weight: 500;
+      color: #555;
+      min-height: 1.5rem
+    }
+
+    /* * MOBILE STYLES (Screen size 768px and below) 📱
+    * Change flex direction to stack items vertically (default for mobile)
+    * and ensure both take up 100% width.
+    */
+    @media(max-width:768px) {
+      .content-area {
+        flex-direction: column;
+        gap: 0;
+      }
+
+      #map {
+        height: 70vh;
+        width: 100%;
+        margin-bottom: 1rem;
+      }
+      
+      #imageViewContainer {
+        width: 100%;
+        margin-bottom: 1rem;
+      }
+    }
+
+    /* Keep the original smaller mobile map height, but apply it to the new max-width for consistency */
+    @media(max-width:600px) {
+       #map { height: 50vh }
+    }
+  </style>
+</head>
 
 <body>
 
 
-<div class="container"> <h1>Painting Location Guessing Game</h1> <div id="connectionPanel"> <input id="roomIdInput" placeholder="Room ID"> <input id="userNameInput" placeholder="Your Name"> <button id="createRoomBtn" onclick="createSession()">Create Room</button> <button id="joinRoomBtn" onclick="joinSession()">Join Room</button> </div> <div id="imageViewContainer"></div> <div id="map"></div> <p id="gameStatus">Create or join a room to start playing.</p> </div>    
-  
+  <div class="container">
+    <h1>Painting Location Guessing Game</h1>
+    <div id="connectionPanel">
+      <input id="roomIdInput" placeholder="Room ID">
+      <input id="userNameInput" placeholder="Your Name">
+      <button id="createRoomBtn" onclick="createSession()">Create Room</button>
+      <button id="joinRoomBtn" onclick="joinSession()">Join Room</button>
+    </div>
+    
+    <div class="content-area">
+      <div id="imageViewContainer"></div>
+      <div id="map"></div>
+    </div>
+    <p id="gameStatus">Create or join a room to start playing.</p>
+  </div>
+
   <script>
     class StreetViewGame {
       constructor() {
@@ -58,15 +202,24 @@
         }
 
         if (!this.myMarker) {
-          this.myMarker = new maplibregl.Marker({ color: '#00796b' })
+          this.myMarker = new maplibregl.Marker({
+              color: '#00796b'
+            })
             .setLngLat([lng, lat])
-            .setPopup(new maplibregl.Popup({ offset: 12 }).setText(this.userName || 'You'))
+            .setPopup(new maplibregl.Popup({
+              offset: 12
+            }).setText(this.userName || 'You'))
             .addTo(this.map);
           this.myMarker.togglePopup();
         }
 
         this.myGuessSubmitted = true;
-        const guessData = { userId: this.myUserId, userName: this.userName, lng, lat };
+        const guessData = {
+          userId: this.myUserId,
+          userName: this.userName,
+          lng,
+          lat
+        };
         this.guesses[this.myUserId] = guessData;
 
         this.sendMapData('guess-submit', guessData);
@@ -152,8 +305,14 @@
 
         this.guesses = {};
         this.myGuessSubmitted = false;
-        if (this.myMarker) { this.myMarker.remove(); this.myMarker = null; }
-        if (this.correctMarker) { this.correctMarker.remove(); this.correctMarker = null; }
+        if (this.myMarker) {
+          this.myMarker.remove();
+          this.myMarker = null;
+        }
+        if (this.correctMarker) {
+          this.correctMarker.remove();
+          this.correctMarker = null;
+        }
         Object.values(this.peerMarkers).forEach(m => m.remove());
         this.peerMarkers = {};
       }
@@ -165,13 +324,22 @@
 
       handleGuessSubmission(data) {
         if (data.userId !== this.myUserId) {
-          const popup = new maplibregl.Popup({ offset: 12, closeButton: false}).setText(data.userName || 'Peer');
-          this.peerMarkers[data.userId] = new maplibregl.Marker({ color: '#d9534f' })
+          const popup = new maplibregl.Popup({
+            offset: 12,
+            closeButton: false
+          }).setText(data.userName || 'Peer');
+          this.peerMarkers[data.userId] = new maplibregl.Marker({
+              color: '#d9534f'
+            })
             .setLngLat([data.lng, data.lat])
             .setPopup(popup)
             .addTo(this.map);
           this.peerMarkers[data.userId].togglePopup();
-          this.guesses[data.userId] = { lng: data.lng, lat: data.lat, userName: data.userName };
+          this.guesses[data.userId] = {
+            lng: data.lng,
+            lat: data.lat,
+            userName: data.userName
+          };
         }
 
         this.updateStatus(
@@ -189,20 +357,27 @@
         const correctLat = this.currentProperty.lat;
         const correctLng = this.currentProperty.lng;
 
-        let winnerId = null, minDistance = Infinity;
+        let winnerId = null,
+          minDistance = Infinity;
         const results = {};
 
         Object.keys(this.guesses).forEach(uid => {
           const g = this.guesses[uid];
           const d = this.calculateDistance(correctLat, correctLng, g.lat, g.lng);
-          results[uid] = { distance: d, userName: g.userName };
+          results[uid] = {
+            distance: d,
+            userName: g.userName
+          };
           if (d < minDistance) {
             minDistance = d;
             winnerId = uid;
           }
         });
 
-        results.correctLocation = { lat: correctLat, lng: correctLng };
+        results.correctLocation = {
+          lat: correctLat,
+          lng: correctLng
+        };
         results.winnerId = winnerId;
 
         this.sendMapData('game-over', results);
@@ -210,15 +385,28 @@
       }
 
       showResults(results) {
-        const { correctLocation: { lat: clat, lng: clng }, winnerId } = results;
+        const {
+          correctLocation: {
+            lat: clat,
+            lng: clng
+          },
+          winnerId
+        } = results;
 
-        this.correctMarker = new maplibregl.Marker({ color: '#00cc00' })
+        this.correctMarker = new maplibregl.Marker({
+            color: '#00cc00'
+          })
           .setLngLat([clng, clat])
-          .setPopup(new maplibregl.Popup({ offset: 12 }).setText('Correct Location'))
+          .setPopup(new maplibregl.Popup({
+            offset: 12
+          }).setText('Correct Location'))
           .addTo(this.map);
         this.correctMarker.togglePopup();
 
-        this.map.flyTo({ center: [clng, clat], zoom: 6 });
+        this.map.flyTo({
+          center: [clng, clat],
+          zoom: 6
+        });
 
         let msg = `Game Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
         Object.keys(results).forEach(uid => {
@@ -247,8 +435,8 @@
         const Δλ = (lon2 - lon1) * Math.PI / 180;
 
         const a = Math.sin(Δφ / 2) ** 2 +
-                  Math.cos(φ1) * Math.cos(φ2) *
-                  Math.sin(Δλ / 2) ** 2;
+          Math.cos(φ1) * Math.cos(φ2) *
+          Math.sin(Δλ / 2) ** 2;
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
       }
@@ -295,4 +483,5 @@
     }
   </script>
 </body>
+
 </html>
