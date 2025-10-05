@@ -13,130 +13,13 @@
   <script src="paintings.js"></script>
 
     <style>
-  body {
-    font-family: system-ui, Roboto, Arial, sans-serif;
-    background: #f0f2f5;
-    display: flex;
-    justify-content: center;
-    min-height: 100vh;
-    margin: 0;
-    text-align: center;
-    overflow-y: auto;
-  }
-
-  .container {
-    background: #fff;
-    padding: 1.5rem;
-    border-radius: 12px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, .12);
-    width: 90%;
-    max-width: 900px;
-  }
-
-  h1 {
-    color: #00796b;
-    margin-top: 0;
-  }
-
-  #connectionPanel {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: center;
-    margin-bottom: 1rem;
-  }
-
-  #connectionPanel input,
-  #connectionPanel button {
-    padding: .5rem .8rem;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-  }
-
-  #connectionPanel button {
-    background: #00796b;
-    color: #fff;
-    border: none;
-    cursor: pointer;
-  }
-
-  #connectionPanel button:disabled {
-    background: #9e9e9e;
-  }
-
-  /* --- New Flex Layout for Map + Image --- */
-  .media-wrapper {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  #imageViewContainer,
-  #map {
-    flex: 1 1 50%;
-    min-width: 0; /* prevents flex overflow issues */
-  }
-
-  #map {
-    height: 500px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-  }
-
-  #imageViewContainer img {
-    display: block;
-    max-width: 100%;
-    height: auto;
-    margin: 0 auto;
-    border-radius: 8px;
-    border: 1px solid #ccc;
-    cursor: zoom-in;
-  }
-
-  #gameStatus {
-    margin-top: 1rem;
-    font-weight: 500;
-    color: #555;
-    min-height: 1.5rem;
-  }
-
-  /* --- Mobile view: stack vertically --- */
-  @media (max-width: 600px) {
-    .media-wrapper {
-      flex-direction: column;
-    }
-
-    #map {
-      height: 70vh; /* taller on mobile */
-    }
-  }
-</style>
-
+  body { font-family: system-ui, Roboto, Arial, sans-serif; background: #f0f2f5; display: flex; justify-content: center; min-height: 100vh; /* allow page to grow vertically */ margin: 0; text-align: center; overflow-y: auto; /* enable vertical scroll if needed */ } .container { background: #fff; padding: 1.5rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, .12); width: 90%; max-width: 900px; } h1 { color: #00796b; margin-top: 0 } #connectionPanel { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 1rem; } #connectionPanel input, #connectionPanel button { padding: .5rem .8rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 8px; } #connectionPanel button { background: #00796b; color: #fff; border: none; cursor: pointer; } #connectionPanel button:disabled { background: #9e9e9e } #map { height: 500px; width: 100%; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 1rem; } #imageViewContainer img { display: block; /* removes inline spacing */ max-width: 100%; /* don’t exceed container width */ height: auto; /* preserve aspect ratio */ margin: 0 auto 1rem auto; /* center the image */ border-radius: 8px; border: 1px solid #ccc; cursor: zoom-in; } #imageViewContainer { margin-bottom: 1rem; } #gameStatus { margin-top: 1rem; font-weight: 500; color: #555; min-height: 1.5rem } @media(max-width:600px) { #map { height: 70vh } } </style>
     </head>
 
 <body>
 
 
-<div class="container">
-  <h1>Painting Location Guessing Game</h1>
-  <div id="connectionPanel">
-    <input id="roomIdInput" placeholder="Room ID">
-    <input id="userNameInput" placeholder="Your Name">
-    <button id="createRoomBtn" onclick="createSession()">Create Room</button>
-    <button id="joinRoomBtn" onclick="joinSession()">Join Room</button>
-  </div>
-
-  <!-- New wrapper for side-by-side layout -->
-  <div class="media-wrapper">
-    <div id="imageViewContainer"></div>
-    <div id="map"></div>
-  </div>
-
-  <p id="gameStatus">Create or join a room to start playing.</p>
-</div>
-    
+<div class="container"> <h1>Painting Location Guessing Game</h1> <div id="connectionPanel"> <input id="roomIdInput" placeholder="Room ID"> <input id="userNameInput" placeholder="Your Name"> <button id="createRoomBtn" onclick="createSession()">Create Room</button> <button id="joinRoomBtn" onclick="joinSession()">Join Room</button> </div> <div id="imageViewContainer"></div> <div id="map"></div> <p id="gameStatus">Create or join a room to start playing.</p> </div>    
   
   <script>
     class StreetViewGame {
