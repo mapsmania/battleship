@@ -19,11 +19,9 @@
       display: flex;
       justify-content: center;
       min-height: 100vh;
-      /* allow page to grow vertically */
       margin: 0;
       text-align: center;
       overflow-y: auto;
-      /* enable vertical scroll if needed */
     }
 
     .container {
@@ -67,40 +65,30 @@
       background: #9e9e9e
     }
 
-    /* * NEW FLEX CONTAINER FOR DESKTOP LAYOUT 🖼️↔️🗺️
-    * This wrapper is key for the side-by-side layout.
-    */
+    /* * FLEX CONTAINER FOR DESKTOP LAYOUT (>= 769px) */
     .content-area {
       display: flex;
       gap: 1.5rem;
-      /* Space between image and map */
       margin-bottom: 1rem;
-      /* space below content */
     }
 
     #map {
+      /* Base height for desktop */
       height: 500px;
       flex: 1;
-      /* Map takes up equal space */
       border-radius: 8px;
       border: 1px solid #ddd;
     }
 
     #imageViewContainer {
       flex: 1;
-      /* Image view takes up equal space */
-      /* Note: Removed margin-bottom since it's now in .content-area */
     }
 
     #imageViewContainer img {
       display: block;
-      /* removes inline spacing */
       width: 100%;
-      /* Use 100% of the flex item width */
       height: auto;
-      /* preserve aspect ratio */
       margin: 0 auto .5rem auto;
-      /* center the image */
       border-radius: 8px;
       border: 1px solid #ccc;
       cursor: zoom-in;
@@ -117,29 +105,29 @@
       min-height: 1.5rem
     }
 
-    /* * MOBILE STYLES (Screen size 768px and below) 📱
-    * Change flex direction to stack items vertically (default for mobile)
-    * and ensure both take up 100% width.
-    */
+    /* ---------------------------------------------------------------------- */
+    /* * MOBILE STYLES (Screen size 768px and below) 📱 */
     @media(max-width:768px) {
       .content-area {
-        flex-direction: column;
+        flex-direction: column; /* Stack vertically */
         gap: 0;
       }
 
-      #map {
-        height: 70vh;
+      /* Ensure both are 100% width on mobile */
+      #imageViewContainer, #map {
         width: 100%;
         margin-bottom: 1rem;
+        /* Crucial: Override the 'flex: 1' to avoid display issues in a column layout. */
+        flex: none; 
       }
       
-      #imageViewContainer {
-        width: 100%;
-        margin-bottom: 1rem;
+      /* CRITICAL FIX: Ensure map has a defined height on mobile */
+      #map {
+        height: 70vh; /* Visible height */
       }
     }
 
-    /* Keep the original smaller mobile map height, but apply it to the new max-width for consistency */
+    /* Tighter mobile map height for very small screens */
     @media(max-width:600px) {
        #map { height: 50vh }
     }
@@ -157,7 +145,7 @@
       <button id="createRoomBtn" onclick="createSession()">Create Room</button>
       <button id="joinRoomBtn" onclick="joinSession()">Join Room</button>
     </div>
-    
+
     <div class="content-area">
       <div id="imageViewContainer"></div>
       <div id="map"></div>
@@ -192,8 +180,13 @@
           center: [0, 0],
           zoom: 2
         });
+        // Added a crucial line here to fix a map rendering issue when moving 
+        // from a hidden state (or size change) to visible/resized.
+        this.map.on('load', () => this.map.resize());
         this.map.on('click', e => this.placeOrMoveMyMarker(e.lngLat.lng, e.lngLat.lat));
       }
+      
+      // ... (rest of the JavaScript remains the same)
 
       placeOrMoveMyMarker(lng, lat) {
         if (this.myGuessSubmitted) {
