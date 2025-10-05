@@ -401,7 +401,7 @@
           zoom: 6
         });
 
-        let msg = `Game Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
+        let msg = `Round Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
         Object.keys(results).forEach(uid => {
           if (uid !== 'correctLocation' && uid !== 'winnerId') {
             const km = (results[uid].distance / 1000).toFixed(2);
