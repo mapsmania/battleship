@@ -174,9 +174,12 @@
       this.correctMarker = null;
       this.myGuessSubmitted = false;
 
-      // ⭐ ADDED – round tracking
+      // ⭐ Round tracking
       this.currentRound = 1;
       this.maxRounds = 10;
+
+      // ⭐ Flag to avoid prefix before game starts
+      this.gameStarted = false;
 
       this.initializeMap();
     }
@@ -232,7 +235,7 @@
           this.opponentUserId = userId;
           if (this.isHost) {
             this.updateStatus(`${userName} joined. Loading painting...`);
-            this.loadRandomPainting();
+            this.loadRandomPainting();  // Game will start here
           } else {
             this.updateStatus(`${userName} joined. Waiting for painting...`);
           }
@@ -253,17 +256,24 @@
 
     async sendPaintingData(feature) {
       if (!this.opponentUserId) return;
-      await this.signalRConnection.invoke('SendWebRTCSignalingMessage', this.opponentUserId.toString(), 'painting-data', feature);
+      await this.signalRConnection.invoke(
+        'SendWebRTCSignalingMessage',
+        this.opponentUserId.toString(),
+        'painting-data',
+        feature
+      );
     }
 
     async loadRandomPainting() {
-      // ⭐ ADDED – end game check
       if (this.currentRound > this.maxRounds) {
         this.updateStatus('🎉 Game Over! All 10 rounds completed.');
         return;
       }
 
       try {
+        // ⭐ Start the game now
+        this.gameStarted = true;
+
         if (typeof paintingLocations === 'undefined' || !paintingLocations.length) {
           this.updateStatus('No painting locations available. Check paintings.js.');
           return;
@@ -282,8 +292,10 @@
     }
 
     showPainting(painting) {
-      this.currentProperty = painting;
+      // ⭐ Player 2 also marks game started when first painting received
+      this.gameStarted = true;
 
+      this.currentProperty = painting;
       const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/';
       const imgHtml = `
         <img 
@@ -308,7 +320,12 @@
 
     sendMapData(type, data) {
       if (!this.signalRConnection || !this.opponentUserId) return;
-      this.signalRConnection.invoke('SendWebRTCSignalingMessage', this.opponentUserId.toString(), type, data).catch(console.error);
+      this.signalRConnection.invoke(
+        'SendWebRTCSignalingMessage',
+        this.opponentUserId.toString(),
+        type,
+        data
+      ).catch(console.error);
     }
 
     handleGuessSubmission(data) {
@@ -378,7 +395,7 @@
 
       this.updateStatus(msg);
 
-      // ⭐ ADDED – progress to next round
+      // Move to next round or end game
       if (this.isHost) {
         if (this.currentRound < this.maxRounds) {
           this.currentRound++;
@@ -408,9 +425,11 @@
       return R * c;
     }
 
-    // ⭐ MODIFIED – prepend round info during active rounds
+    // ⭐ Updated to only prefix during active gameplay
     updateStatus(msg) {
-      const prefix = (this.currentRound <= this.maxRounds) ? `Round ${this.currentRound} (of ${this.maxRounds}) - ` : '';
+      const prefix = (this.gameStarted && this.currentRound <= this.maxRounds)
+        ? `Round ${this.currentRound} (of ${this.maxRounds}) - `
+        : '';
       document.getElementById('gameStatus').innerHTML = prefix + msg;
     }
   }
@@ -445,6 +464,7 @@
     document.getElementById('joinRoomBtn').disabled = true;
   }
 </script>
+
 </body>
 
 </html>
