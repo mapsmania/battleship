@@ -156,14 +156,13 @@
     <p id="gameStatus">Create or join a room to start playing.</p>
   </div>
 
-  <script>
+ <script>
   class StreetViewGame {
     constructor() {
       this.roomId = null;
       this.userName = null;
       this.myUserId = Math.floor(Math.random() * 10000) + 1;
       this.isHost = false;
-
       this.map = null;
       this.myMarker = null;
       this.peerMarkers = {};
@@ -174,12 +173,10 @@
       this.correctMarker = null;
       this.myGuessSubmitted = false;
 
-      // ⭐ Round tracking
-      this.currentRound = 1;
+      // Round control
       this.maxRounds = 10;
-
-      // ⭐ Flag to avoid prefix before game starts
-      this.gameStarted = false;
+      this.currentRound = 1;
+      this.gameActive = false;
 
       this.initializeMap();
     }
@@ -234,8 +231,10 @@
         if (userId !== this.myUserId) {
           this.opponentUserId = userId;
           if (this.isHost) {
-            this.updateStatus(`${userName} joined. Loading painting...`);
-            this.loadRandomPainting();  // Game will start here
+            this.updateStatus(`${userName} joined. Loading first painting...`);
+            this.gameActive = true;
+            this.currentRound = 1;
+            this.loadRandomPainting();
           } else {
             this.updateStatus(`${userName} joined. Waiting for painting...`);
           }
@@ -265,15 +264,9 @@
     }
 
     async loadRandomPainting() {
-      if (this.currentRound > this.maxRounds) {
-        this.updateStatus('🎉 Game Over! All 10 rounds completed.');
-        return;
-      }
+      if (!this.gameActive) this.gameActive = true;
 
       try {
-        // ⭐ Start the game now
-        this.gameStarted = true;
-
         if (typeof paintingLocations === 'undefined' || !paintingLocations.length) {
           this.updateStatus('No painting locations available. Check paintings.js.');
           return;
@@ -292,10 +285,8 @@
     }
 
     showPainting(painting) {
-      // ⭐ Player 2 also marks game started when first painting received
-      this.gameStarted = true;
-
       this.currentProperty = painting;
+
       const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/';
       const imgHtml = `
         <img 
@@ -310,6 +301,7 @@
 
       this.updateStatus('Look at the painting above and click on the map to place your guess.');
 
+      // Reset round state
       this.guesses = {};
       this.myGuessSubmitted = false;
       if (this.myMarker) { this.myMarker.remove(); this.myMarker = null; }
@@ -330,7 +322,8 @@
 
     handleGuessSubmission(data) {
       if (data.userId !== this.myUserId) {
-        const popup = new maplibregl.Popup({ offset: 12, closeButton: false }).setText(data.userName || 'Peer');
+        const popup = new maplibregl.Popup({ offset: 12, closeButton: false })
+          .setText(data.userName || 'Peer');
         this.peerMarkers[data.userId] = new maplibregl.Marker({ color: '#d9534f' })
           .setLngLat([data.lng, data.lat])
           .setPopup(popup)
@@ -370,11 +363,19 @@
       results.correctLocation = { lat: correctLat, lng: correctLng };
       results.winnerId = winnerId;
 
+      // ⭐ Send current round number so both players stay in sync
+      results.roundNumber = this.currentRound;
+
       this.sendMapData('game-over', results);
       this.showResults(results);
     }
 
     showResults(results) {
+      // ⭐ Sync round number for both players
+      if (results.roundNumber) {
+        this.currentRound = results.roundNumber;
+      }
+
       const { correctLocation: { lat: clat, lng: clng }, winnerId } = results;
 
       this.correctMarker = new maplibregl.Marker({ color: '#00cc00' })
@@ -395,7 +396,7 @@
 
       this.updateStatus(msg);
 
-      // Move to next round or end game
+      // Host handles round progression
       if (this.isHost) {
         if (this.currentRound < this.maxRounds) {
           this.currentRound++;
@@ -419,15 +420,14 @@
       const Δλ = (lon2 - lon1) * Math.PI / 180;
 
       const a = Math.sin(Δφ / 2) ** 2 +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ / 2) ** 2;
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) ** 2;
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
 
-    // ⭐ Updated to only prefix during active gameplay
     updateStatus(msg) {
-      const prefix = (this.gameStarted && this.currentRound <= this.maxRounds)
+      const prefix = this.gameActive
         ? `Round ${this.currentRound} (of ${this.maxRounds}) - `
         : '';
       document.getElementById('gameStatus').innerHTML = prefix + msg;
@@ -440,9 +440,11 @@
     const room = document.getElementById('roomIdInput').value.trim();
     const name = document.getElementById('userNameInput').value.trim();
     if (!room || !name) { alert('Enter room and name'); return; }
+
     game.roomId = room;
     game.userName = name;
     game.isHost = true;
+
     await game.connectToTripgeoHub();
     await game.signalRConnection.invoke('JoinWebRTCSession', `map_${room}`, game.myUserId);
     game.updateStatus(`Room "${room}" created. Waiting for players...`);
@@ -454,9 +456,11 @@
     const room = document.getElementById('roomIdInput').value.trim();
     const name = document.getElementById('userNameInput').value.trim();
     if (!room || !name) { alert('Enter room and name'); return; }
+
     game.roomId = room;
     game.userName = name;
     game.isHost = false;
+
     await game.connectToTripgeoHub();
     await game.signalRConnection.invoke('JoinWebRTCSession', `map_${room}`, game.myUserId);
     game.updateStatus(`Joining room "${room}"...`);
