@@ -178,6 +178,7 @@
         // 🆕 Add properties for round management
         this.currentRound = 0; // The current round number (1 to MAX_ROUNDS)
         this.playerScores = {}; // To store scores across rounds
+        this.roundHistory = []; // 🆕 Stores winner/info for each round
 
         this.initializeMap();
       }
@@ -186,16 +187,14 @@
         this.map = new maplibregl.Map({
           container: 'map',
           style: 'https://tiles.openfreemap.org/styles/liberty',
-          center: [-30, 30],    
-          zoom: 1.4      
+          center: [-30, 30],
+          zoom: 1.4
         });
         // Added a crucial line here to fix a map rendering issue when moving 
         // from a hidden state (or size change) to visible/resized.
         this.map.on('load', () => this.map.resize());
         this.map.on('click', e => this.placeOrMoveMyMarker(e.lngLat.lng, e.lngLat.lat));
       }
-      
-      // ... (rest of the JavaScript remains the same)
 
       placeOrMoveMyMarker(lng, lat) {
         if (this.currentRound === 0) {
@@ -264,7 +263,7 @@
 
           // 🛠️ Check for 'game-end' message
           if (type === 'game-over') this.showResults(data);
-          else if (type === 'game-end') this.endGame(data); 
+          else if (type === 'game-end') this.endGame(data);
           // 🛠️ The client receives 'round-start' to know which round it is
           else if (type === 'round-start') this.startRound(data);
           else if (type === 'guess-submit') this.handleGuessSubmission(data);
@@ -273,19 +272,19 @@
         await this.signalRConnection.start();
         this.updateStatus('Connected to TripGeo hub.');
       }
-      
+
       // 🆕 Helper function to get the status message with the current round
       getRoundStatus(msg) {
         if (this.currentRound === 0) return msg;
         return `Round ${this.currentRound} (of ${MAX_ROUNDS}) - ${msg}`;
       }
-      
+
       // 🆕 New function: Host-only call to advance round and load painting
       async startNewRound() {
         if (!this.isHost) return;
-        
+
         this.currentRound++;
-        
+
         // ⛔ Game End Check ⛔
         if (this.currentRound > MAX_ROUNDS) {
           this.endGameAsHost();
@@ -294,7 +293,7 @@
 
         // Load and show the painting
         await this.loadRandomPainting();
-        
+
         // Notify the client of the new round and painting data
         const roundData = {
           currentRound: this.currentRound,
@@ -321,7 +320,7 @@
 
           // Only the host calls showPainting *after* receiving painting data from startRound
           if (this.isHost || this.currentRound === 1) { // 🛠️ Host can call showPainting immediately, or client on round 1
-             this.showPainting(painting);
+            this.showPainting(painting);
           }
         } catch (err) {
           console.error(err);
@@ -408,10 +407,13 @@
         // 🆕 Initialize scores if they don't exist
         Object.keys(this.guesses).forEach(uid => {
           if (!this.playerScores[uid]) {
-             this.playerScores[uid] = { score: 0, userName: this.guesses[uid].userName };
+            this.playerScores[uid] = {
+              score: 0,
+              userName: this.guesses[uid].userName
+            };
           }
         });
-        
+
         Object.keys(this.guesses).forEach(uid => {
           const g = this.guesses[uid];
           const d = this.calculateDistance(correctLat, correctLng, g.lat, g.lng);
@@ -424,11 +426,26 @@
             winnerId = uid;
           }
         });
-        
+
         // 🆕 Award point to winner
         if (winnerId) {
-            this.playerScores[winnerId].score += 1;
+          this.playerScores[winnerId].score += 1;
         }
+
+        // 🆕 RECORD ROUND HISTORY
+        const roundResult = {
+          round: this.currentRound,
+          winnerId: winnerId,
+          winnerName: this.playerScores[winnerId].userName,
+          paintingName: this.currentProperty.name,
+          paintingUrl: this.currentProperty.imageUrl,
+          distances: Object.keys(this.guesses).map(uid => ({
+            userName: this.guesses[uid].userName,
+            distance: this.calculateDistance(correctLat, correctLng, this.guesses[uid].lat, this.guesses[uid].lng)
+          }))
+        };
+        this.roundHistory.push(roundResult);
+        // END RECORD ROUND HISTORY
 
         results.correctLocation = {
           lat: correctLat,
@@ -474,11 +491,11 @@
             msg += ` | <strong>${results[uid].userName}</strong> was <strong>${km} km</strong> away.`;
           }
         });
-        
+
         // 🆕 Display current scores
         let scoreMsg = ' | Current Scores: ';
         Object.values(currentScores).forEach(player => {
-            scoreMsg += `<strong>${player.userName}</strong>: ${player.score} - `;
+          scoreMsg += `<strong>${player.userName}</strong>: ${player.score} - `;
         });
         msg += scoreMsg.slice(0, -3); // Remove the trailing ' - '
 
@@ -493,44 +510,96 @@
           }, 5000);
         }
       }
-      
+
       // 🆕 New function: Host-only call to end the game
       endGameAsHost() {
-        const finalResults = { finalScores: this.playerScores };
+        // 🛠️ Pass the round history along with the final scores
+        const finalResults = {
+          finalScores: this.playerScores,
+          roundHistory: this.roundHistory
+        };
         this.sendMapData('game-end', finalResults);
         this.endGame(finalResults);
       }
-      
+
       // 🆕 New function: End the game for all players
       endGame(data) {
-        const { finalScores } = data;
-        
+        const {
+          finalScores,
+          roundHistory
+        } = data; // 🛠️ Destructure roundHistory
+
         let finalMessage = `Game Over! The final score after ${MAX_ROUNDS} rounds is: `;
         let winningScore = -1;
         let winnerName = 'No one';
-        
+
         Object.values(finalScores).forEach(player => {
-            finalMessage += `<strong>${player.userName}</strong>: ${player.score}, `;
-            if (player.score > winningScore) {
-                winningScore = player.score;
-                winnerName = player.userName;
-            } else if (player.score === winningScore) {
-                winnerName = 'A tie'; // Handle ties
-            }
+          finalMessage += `<strong>${player.userName}</strong>: ${player.score}, `;
+          if (player.score > winningScore) {
+            winningScore = player.score;
+            winnerName = player.userName;
+          } else if (player.score === winningScore) {
+            winnerName = 'A tie'; // Handle ties
+          }
         });
-        
+
         finalMessage = finalMessage.slice(0, -2); // Remove trailing comma and space
         finalMessage += `. The winner is <strong>${winnerName}</strong> with ${winningScore} points! 🏆`;
-        
-        document.getElementById('imageViewContainer').innerHTML = 
-          `<img src="logo.png" alt="Game Over" class="logo"><p>${finalMessage}</p>`;
+
+        // 🆕 GENERATE HTML FOR ROUND RESULTS
+        let resultsHtml = `
+            <h2>Final Standings</h2>
+            <p>${finalMessage}</p>
+            <h3 style="color:#00796b; margin-top: 1rem;">Round-by-Round Breakdown</h3>
+            <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9em;">
+                <thead>
+                    <tr style="background-color: #f0f0f0;">
+                        <th style="padding: 8px; border: 1px solid #ddd;">Round</th>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Painting</th>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Round Winner</th>
+                        <th style="padding: 8px; border: 1px solid #ddd;">Distances (km)</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        roundHistory.forEach(r => {
+          // Check if r.distances is available and map distances
+          const distanceText = Array.isArray(r.distances) ? r.distances.map(d =>
+            `${d.userName}: ${(d.distance / 1000).toFixed(1)}`
+          ).join(' | ') : 'N/A';
+
+          resultsHtml += `
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${r.round}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${r.paintingName || 'Unknown'}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${r.winnerName || 'N/A'}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; font-size: 0.85em;">${distanceText}</td>
+                </tr>
+            `;
+        });
+
+        resultsHtml += `
+                </tbody>
+            </table>
+        `;
+        // END GENERATE HTML
+
+        document.getElementById('imageViewContainer').innerHTML = resultsHtml; // 🛠️ Show the table
         this.updateStatus(finalMessage);
-        
-        // Clean up for a new game
+
+        // Clean up for a new game, including round history
         this.currentRound = 0;
         this.playerScores = {};
-        if (this.myMarker) { this.myMarker.remove(); this.myMarker = null; }
-        if (this.correctMarker) { this.correctMarker.remove(); this.correctMarker = null; }
+        this.roundHistory = []; // 🛠️ Reset round history
+        if (this.myMarker) {
+          this.myMarker.remove();
+          this.myMarker = null;
+        }
+        if (this.correctMarker) {
+          this.correctMarker.remove();
+          this.correctMarker = null;
+        }
         Object.values(this.peerMarkers).forEach(m => m.remove());
         this.peerMarkers = {};
       }
@@ -556,8 +625,6 @@
 
     const game = new StreetViewGame();
 
-    // ... (createSession and joinSession functions remain the same)
-    
     async function createSession() {
       const room = document.getElementById('roomIdInput').value.trim();
       const name = document.getElementById('userNameInput').value.trim();
@@ -591,7 +658,7 @@
       document.getElementById('createRoomBtn').disabled = true;
       document.getElementById('joinRoomBtn').disabled = true;
     }
-  </script>
+</script>
 </body>
 
 </html>
