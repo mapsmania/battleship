@@ -370,5 +370,42 @@ const paintingLocations = [
     imageUrl: "images/ap36.123.1.jpg",
     details: "(1865) by Unknown. <br><br> From the <a href='https://w",
   }
-  // Data for additional paintings should be added here, following the same object structure.
+  
+  {
+    name: "View of the Town of Alkmaar",
+    lat: 52.632614,
+    lng: 4.743932,
+    imageUrl: "images/DP145944.jpg",
+    details: "(1620-70) by Salomon van Ruysdael. <br><br> From the <a href='https://www.metmuseum.org/art/collection/search/437590'>Met Museum</a>.",
+  },
+  {
+    name: "Ghent Gate, Bruges",
+    lat: 51.21264302630933,
+    lng: 3.2404485616302026,
+    imageUrl: "images/DAC_1984-29-113_001_OA.jpg",
+    details: "(1898) by William Strang. <br><br> From the <a href='https://dac-collection.wesleyan.edu/objects-1/info/13179'>Davison Art Center</a>.",
+  },
+  {
+    name: "High Street, Edinburgh",
+    lat: 55.94950293449235,
+    lng: -3.190887963219886,
+    imageUrl: "images/ycba_a56bcc91-8fed-4764-a6b0-8b50b24c017d.jpg",
+    details: "(1818) by Joseph Mallord William Turner. <br><br> From the <a href='https://collections.britishart.yale.edu/catalog/tms:5501'>Yale Center for British Art</a>.",
+  },
+  {
+    name: "Ruins of the Château de Pierrefonds",
+    lat: 49.3469489361878,
+    lng: 2.9801644318251,
+    imageUrl: "images/1940.965_v01_o4.jpg",
+    details: "(c1832) by Jean-Baptiste-Camille Corot. <br><br> From the <a href='https://www.cincinnatiartmuseum.org/art/explore-the-collection?id=11296492'>Cincinnati Art Museum</a>.",
+  },
+  {
+    name: "Brooklyn Bridge",
+    lat: 40.70613429891641,
+    lng: -73.99669263862219,
+    imageUrl: "images/BrooklynBridge.jpg",
+    details: "(1899) by Henry Ward Ranger. <br><br> From the <a href='https://www.artic.edu/artworks/16545/brooklyn-bridge'>Art Institute Chicago</a>.",
+  }
+ 
+
 ];
