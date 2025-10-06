@@ -447,7 +447,7 @@ const paintingLocations = [
     name: "Saint Salvi Church, Albi",
     lat: 43.92801546810641,
     lng: 2.1447380095308684,
-    imageUrl: "Salvi.jpg",
+    imageUrl: "images/Salvi.jpg",
     details: "(1830-40) by Pierre Achille Poirot. <br><br> From the <a href='https://www.artic.edu/artworks/110752/saint-salvi-church-albi'>Art Institute Chicago</a>."
   },
   {
