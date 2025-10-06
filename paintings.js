@@ -369,7 +369,7 @@ const paintingLocations = [
     lng: -73.9845876,
     imageUrl: "images/ap36.123.1.jpg",
     details: "(1865) by Unknown. <br><br> From the <a href='https://w",
-  }
+  },
   
   {
     name: "View of the Town of Alkmaar",
@@ -405,7 +405,27 @@ const paintingLocations = [
     lng: -73.99669263862219,
     imageUrl: "images/BrooklynBridge.jpg",
     details: "(1899) by Henry Ward Ranger. <br><br> From the <a href='https://www.artic.edu/artworks/16545/brooklyn-bridge'>Art Institute Chicago</a>.",
+  },
+ {
+    name: "Ponte Santa Trinità, Florence",
+    lat: 43.76901934731335,
+    lng: 11.250309358895594,
+    imageUrl: "images/DP837464.jpg",
+    details: "(pre 1832) by James Duffield Harding. <br><br> From the <a href='https://www.metmuseum.org/art/collection/search/406118'>Met Museum</a>.",
+  },
+  {
+    name: "Old Annapolis, Francis Street", 
+    lat: 38.97806598531773,
+    lng: -76.48972283733242,
+    imageUrl: "images/DT218025.jpg",
+    details: "(1876) by Francis Blackwell Mayer. <br><br> From the <a href='https://www.metmuseum.org/art/collection/search/11524'>Met Museum</a>.",
+  },
+  {
+    name: "Founding of Australia, Sydney Cove",
+    lat: -33.859206443817655,
+    lng: 151.2115517335217,
+    imageUrl: "images/a128112h.jpg", 
+    details: "(1937) by Algernon Talmage. <br><br> From the <a href='https://www.sl.nsw.gov.au/collection-items/founding-australia-capt-arthur-phillip-rn-sydney-cove-jan-26th-1788'>State Library NSW</a>.",
   }
- 
 
 ];
