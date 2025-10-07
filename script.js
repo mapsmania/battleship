@@ -173,7 +173,7 @@
       showPainting(painting) {
         this.currentProperty = painting;
 
-        const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/';
+        const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/images/';
         const imgHtml = `
           <img 
             src="${BASE_IMAGE_URL}${painting.imageUrl}"
