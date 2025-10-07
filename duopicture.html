@@ -156,7 +156,7 @@
     <p id="gameStatus">Create or join a room to start playing.</p>
   </div>
 
-  <script>
+ <script>
     const MAX_ROUNDS = 10; // Define the maximum number of rounds
 
     class StreetViewGame {
@@ -217,6 +217,9 @@
             }).setText(this.userName || 'You'))
             .addTo(this.map);
           this.myMarker.togglePopup();
+        } else {
+            // FIX: If the marker exists, move it, but keep the myMarker reference
+            this.myMarker.setLngLat([lng, lat]);
         }
 
         this.myGuessSubmitted = true;
@@ -350,7 +353,6 @@
         this.myGuessSubmitted = false;
         
         // Ensure all markers are removed and references are cleared
-        // This handles the correct marker, peer markers, and the local player's final revealed marker.
         
         // Remove Correct Marker
         if (this.correctMarker) {
@@ -362,7 +364,7 @@
         Object.values(this.peerMarkers).forEach(m => m.remove());
         this.peerMarkers = {};
         
-        // Remove Local Marker (This handles both the initial guess and the one placed in showResults)
+        // Remove Local Marker (This now correctly removes the one persistent object)
         if (this.myMarker) {
           this.myMarker.remove();
           this.myMarker = null; 
@@ -488,27 +490,40 @@
         Object.keys(this.guesses).forEach(uid => {
           const guess = this.guesses[uid];
           const isMe = uid == this.myUserId;
-          // Determine color based on ownership (Your color vs Peer color)
-          const color = isMe ? '#00796b' : '#d9534f'; 
           const userName = guess.userName || (isMe ? 'You' : 'Peer');
 
-          const marker = new maplibregl.Marker({
-              color: color
-            })
-            .setLngLat([guess.lng, guess.lat])
-            .setPopup(new maplibregl.Popup({
-              offset: 12,
-              closeButton: false
-            }).setText(userName))
-            .addTo(this.map);
-
-          // Store markers back into their respective places for cleanup in showPainting
           if (isMe) {
-            this.myMarker = marker;
+            // ⭐ FIX APPLIED HERE ⭐
+            // Instead of creating a new marker, just update the existing one.
+            if (this.myMarker) {
+                // 1. Move the existing marker to the final submitted guess location
+                this.myMarker.setLngLat([guess.lng, guess.lat]); 
+                
+                // 2. Change color/popup to confirm the guess is final
+                const markerElement = this.myMarker.getElement();
+                markerElement.querySelector('svg > path').setAttribute('fill', '#00796b'); 
+                
+                this.myMarker.setPopup(new maplibregl.Popup({
+                    offset: 12,
+                    closeButton: false
+                }).setText(userName));
+                this.myMarker.togglePopup();
+            }
           } else {
+            // Opponent marker logic (This part is fine as it creates new peer markers)
+            const color = '#d9534f'; 
+            const marker = new maplibregl.Marker({
+                color: color
+              })
+              .setLngLat([guess.lng, guess.lat])
+              .setPopup(new maplibregl.Popup({
+                offset: 12,
+                closeButton: false
+              }).setText(userName))
+              .addTo(this.map);
             this.peerMarkers[uid] = marker;
+            marker.togglePopup();
           }
-          marker.togglePopup();
         });
         // END RENDER PLAYER GUESSES
 
