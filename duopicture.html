@@ -367,7 +367,7 @@
           this.myMarker.remove();
           this.myMarker = null; 
         }
-
+      } 
       sendMapData(type, data) {
         if (!this.signalRConnection || !this.opponentUserId) return;
         this.signalRConnection.invoke('SendWebRTCSignalingMessage', this.opponentUserId.toString(), type, data).catch(console.error);
