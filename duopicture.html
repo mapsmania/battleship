@@ -348,18 +348,25 @@
 
         this.guesses = {};
         this.myGuessSubmitted = false;
-        // Clean up markers from previous round
-        if (this.myMarker) {
-          this.myMarker.remove();
-          this.myMarker = null;
-        }
+        
+        // Ensure all markers are removed and references are cleared
+        // This handles the correct marker, peer markers, and the local player's final revealed marker.
+        
+        // Remove Correct Marker
         if (this.correctMarker) {
           this.correctMarker.remove();
           this.correctMarker = null;
         }
+        
+        // Remove Peer Markers
         Object.values(this.peerMarkers).forEach(m => m.remove());
         this.peerMarkers = {};
-      }
+        
+        // Remove Local Marker (This handles both the initial guess and the one placed in showResults)
+        if (this.myMarker) {
+          this.myMarker.remove();
+          this.myMarker = null; 
+        }
 
       sendMapData(type, data) {
         if (!this.signalRConnection || !this.opponentUserId) return;
