@@ -156,7 +156,7 @@
     <p id="gameStatus">Create or join a room to start playing.</p>
   </div>
 
- <script>
+  <script>
     const MAX_ROUNDS = 10; // Define the maximum number of rounds
 
     class StreetViewGame {
@@ -178,7 +178,7 @@
         // 🆕 Add properties for round management
         this.currentRound = 0; // The current round number (1 to MAX_ROUNDS)
         this.playerScores = {}; // To store scores across rounds
-        this.roundHistory = []; // 🆕 Stores winner/info for each round
+        this.roundHistory = []; // Stores winner/info for each round
 
         this.initializeMap();
       }
@@ -207,6 +207,7 @@
         }
 
         if (!this.myMarker) {
+          // 🛠️ Local marker is created immediately for visual feedback
           this.myMarker = new maplibregl.Marker({
               color: '#00796b'
             })
@@ -251,7 +252,7 @@
             // 🛠️ The host starts the *first* round when an opponent joins
             if (this.isHost) {
               this.updateStatus(`${userName} joined. Starting first round...`);
-              this.startNewRound(); // 🆕 Call startNewRound
+              this.startNewRound();
             } else {
               this.updateStatus(`${userName} joined. Waiting for host to start the game...`);
             }
@@ -347,6 +348,7 @@
 
         this.guesses = {};
         this.myGuessSubmitted = false;
+        // Clean up markers from previous round
         if (this.myMarker) {
           this.myMarker.remove();
           this.myMarker = null;
@@ -366,17 +368,7 @@
 
       handleGuessSubmission(data) {
         if (data.userId !== this.myUserId) {
-          const popup = new maplibregl.Popup({
-            offset: 12,
-            closeButton: false
-          }).setText(data.userName || 'Peer');
-          this.peerMarkers[data.userId] = new maplibregl.Marker({
-              color: '#d9534f'
-            })
-            .setLngLat([data.lng, data.lat])
-            .setPopup(popup)
-            .addTo(this.map);
-          this.peerMarkers[data.userId].togglePopup();
+          // 🛑 CRITICAL CHANGE: Store the guess data but DO NOT render the opponent's marker yet.
           this.guesses[data.userId] = {
             lng: data.lng,
             lat: data.lat,
@@ -469,6 +461,7 @@
           currentScores // 🆕 Destructure scores
         } = results;
 
+        // 🛠️ Correct location marker
         this.correctMarker = new maplibregl.Marker({
             color: '#00cc00'
           })
@@ -483,6 +476,34 @@
           center: [clng, clat],
           zoom: 6
         });
+
+        // 🆕 CRITICAL CHANGE: RENDER ALL PLAYER GUESSES NOW THAT THE ROUND IS OVER
+        Object.keys(this.guesses).forEach(uid => {
+          const guess = this.guesses[uid];
+          const isMe = uid == this.myUserId;
+          // Determine color based on ownership (Your color vs Peer color)
+          const color = isMe ? '#00796b' : '#d9534f'; 
+          const userName = guess.userName || (isMe ? 'You' : 'Peer');
+
+          const marker = new maplibregl.Marker({
+              color: color
+            })
+            .setLngLat([guess.lng, guess.lat])
+            .setPopup(new maplibregl.Popup({
+              offset: 12,
+              closeButton: false
+            }).setText(userName))
+            .addTo(this.map);
+
+          // Store markers back into their respective places for cleanup in showPainting
+          if (isMe) {
+            this.myMarker = marker;
+          } else {
+            this.peerMarkers[uid] = marker;
+          }
+          marker.togglePopup();
+        });
+        // END RENDER PLAYER GUESSES
 
         let msg = `Round Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
         Object.keys(results).forEach(uid => {
@@ -506,7 +527,7 @@
         if (this.isHost) {
           setTimeout(() => {
             this.updateStatus(this.getRoundStatus('Starting a new round...'));
-            this.startNewRound(); // 🛠️ Call startNewRound instead of loadRandomPainting
+            this.startNewRound();
           }, 5000);
         }
       }
@@ -659,6 +680,7 @@
       document.getElementById('joinRoomBtn').disabled = true;
     }
 </script>
-</body>
+  
+ </body>
 
 </html>
