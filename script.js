@@ -175,8 +175,7 @@
 
         const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/';
         const imgHtml = `
-          <img 
-            src="${BASE_IMAGE_URL}${painting.imageUrl}"
+          <img src="${BASE_IMAGE_URL}${painting.imageUrl}"
             alt="${painting.name}" 
             onclick="this.requestFullscreen()" 
             title="${painting.name}" 
