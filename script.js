@@ -541,5 +541,3 @@ function startSinglePlayer() {
     game.startNewRound(); 
 }
 
-// 🆕 Attach the single player function to the icon's click event
-document.getElementById('singlePlayerBtn').onclick = startSinglePlayer;
