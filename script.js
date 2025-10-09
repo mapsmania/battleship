@@ -1,4 +1,3 @@
-
 const MAX_ROUNDS = 10; // Define the maximum number of rounds
 
 class StreetViewGame {
@@ -7,6 +6,9 @@ class StreetViewGame {
     this.userName = null;
     this.myUserId = Math.floor(Math.random() * 10000) + 1;
     this.isHost = false;
+    // 🆕 New flag for single-player mode
+    this.isSinglePlayer = false; 
+    
     this.map = null;
     this.myMarker = null;
     this.peerMarkers = {};
@@ -17,7 +19,7 @@ class StreetViewGame {
     this.correctMarker = null;
     this.myGuessSubmitted = false;
 
-    // 🆕 Add properties for round management
+    // Add properties for round management
     this.currentRound = 0;
     this.playerScores = {};
     this.roundHistory = [];
@@ -38,10 +40,17 @@ class StreetViewGame {
 
   placeOrMoveMyMarker(lng, lat) {
     if (this.currentRound === 0) {
-      this.updateStatus('Game not started. Wait for another player or for the host to start the first round.');
+      this.updateStatus('Game not started. Click "Play Solo" or wait for the host to start the first round.');
       return;
     }
-    if (this.myGuessSubmitted) {
+    
+    // 🆕 SINGLE PLAYER LOGIC: If a guess is submitted, the next click reveals the results.
+    if (this.isSinglePlayer && this.myGuessSubmitted) {
+        this.showResultsSolo(); 
+        return;
+    }
+
+    if (this.myGuessSubmitted && !this.isSinglePlayer) { // Multiplayer check
       this.updateStatus(this.getRoundStatus('Guess locked. Waiting for the opponent.'));
       return;
     }
@@ -58,15 +67,25 @@ class StreetViewGame {
     const guessData = { userId: this.myUserId, userName: this.userName, lng, lat };
     this.guesses[this.myUserId] = guessData;
 
-    this.sendMapData('guess-submit', guessData);
-    this.updateStatus(this.getRoundStatus('Guess submitted. Waiting for the opponent...'));
+    // 🆕 Conditional: Only send data if NOT single-player
+    if (!this.isSinglePlayer) {
+        this.sendMapData('guess-submit', guessData);
+    }
+    
+    this.updateStatus(this.getRoundStatus(this.isSinglePlayer 
+        ? 'Guess submitted. Click on the map again to reveal the location.' 
+        : 'Guess submitted. Waiting for the opponent...'));
 
-    if (this.isHost && Object.keys(this.guesses).length === 2) {
+    // Multiplayer check for game end
+    if (!this.isSinglePlayer && this.isHost && Object.keys(this.guesses).length === 2) {
       this.calculateWinner();
     }
   }
 
   async connectToTripgeoHub() {
+    // 🆕 If single-player, skip connection
+    if (this.isSinglePlayer) return; 
+      
     if (this.signalRConnection) return;
 
     const hubUrl = `https://api.tripgeo.com/teamhub?userid=${this.myUserId}&teamid=shared_map_temp`;
@@ -110,17 +129,31 @@ class StreetViewGame {
 
     this.currentRound++;
     if (this.currentRound > MAX_ROUNDS) {
-      this.endGameAsHost();
+      // 🆕 Check for single player end game
+      if (this.isSinglePlayer) {
+          this.endGameSolo();
+      } else {
+          this.endGameAsHost();
+      }
       return;
     }
 
     await this.loadRandomPainting();
 
-    const roundData = {
-      currentRound: this.currentRound,
-      painting: this.currentProperty
-    };
-    await this.signalRConnection.invoke('SendWebRTCSignalingMessage', this.opponentUserId.toString(), 'round-start', roundData);
+    // 🆕 Only send round data if NOT single-player
+    if (!this.isSinglePlayer) {
+        const roundData = {
+            currentRound: this.currentRound,
+            painting: this.currentProperty
+        };
+        // Ensure opponent exists before trying to send a message
+        if (this.opponentUserId) {
+            await this.signalRConnection.invoke('SendWebRTCSignalingMessage', this.opponentUserId.toString(), 'round-start', roundData);
+        }
+    } else {
+         // Single player starts the game with the loaded painting
+         this.updateStatus(this.getRoundStatus('Look at the painting above and click on the map to place your guess.'));
+    }
   }
 
   startRound(data) {
@@ -150,18 +183,24 @@ class StreetViewGame {
   showPainting(painting) {
     this.currentProperty = painting;
     const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/';
-    const imgHtml = `
-      <img src="${BASE_IMAGE_URL}${painting.imageUrl}" 
-           alt="${painting.name}" 
-           onclick="this.requestFullscreen()" 
-           title="${painting.name}" 
-           width="400">
-      <p>${painting.name} ${painting.details}</p>
+    const imgHtml = `<br>
+      <img src="${BASE_IMAGE_URL}${painting.imageUrl}" <br>
+           alt="${painting.name}" <br>
+           onclick="this.requestFullscreen()" <br>
+           title="${painting.name}" <br>
+           width="400"><br>
+      <p>${painting.name} ${painting.details}</p><br>
     `;
     document.getElementById('imageViewContainer').innerHTML = imgHtml;
-    this.updateStatus(this.getRoundStatus('Look at the painting above and click on the map to place your guess.'));
+    
+    // 🆕 Update status based on mode
+    const statusMsg = this.isSinglePlayer
+        ? 'Look at the painting above and click on the map to place your guess.'
+        : 'Look at the painting above and click on the map to place your guess.';
+        
+    this.updateStatus(this.getRoundStatus(statusMsg));
 
-    // ✅ Cleanup old markers
+    // Cleanup old markers
     this.guesses = {};
     this.myGuessSubmitted = false;
     if (this.myMarker) { this.myMarker.remove(); this.myMarker = null; }
@@ -175,7 +214,6 @@ class StreetViewGame {
     this.signalRConnection.invoke('SendWebRTCSignalingMessage', this.opponentUserId.toString(), type, data).catch(console.error);
   }
 
-  // ✅ Modified to hide opponent marker until both have guessed
   handleGuessSubmission(data) {
     if (data.userId !== this.myUserId) {
       this.guesses[data.userId] = {
@@ -239,11 +277,10 @@ class StreetViewGame {
     this.showResults(results);
   }
 
-  // ✅ Modified to show players' markers only after both have guessed
   showResults(results) {
     const { correctLocation: { lat: clat, lng: clng }, winnerId, currentScores } = results;
 
-    // ✅ Show both players' guesses
+    // Show both players' guesses
     Object.keys(this.guesses).forEach(uid => {
       const g = this.guesses[uid];
       const color = (uid == this.myUserId) ? '#00796b' : '#d9534f';
@@ -254,7 +291,7 @@ class StreetViewGame {
       this.peerMarkers[uid] = marker;
     });
 
-    // ✅ Show correct location
+    // Show correct location
     this.correctMarker = new maplibregl.Marker({ color: '#00cc00' })
         .setLngLat([clng, clat])
         .setPopup(new maplibregl.Popup({ offset: 12 }).setText('Correct Location'))
@@ -287,6 +324,35 @@ class StreetViewGame {
     }
   }
 
+  // 🆕 New method for single-player results display
+  showResultsSolo() {
+    const correctLat = this.currentProperty.lat;
+    const correctLng = this.currentProperty.lng;
+    const myGuess = this.guesses[this.myUserId];
+
+    // Show correct location
+    this.correctMarker = new maplibregl.Marker({ color: '#00cc00' })
+        .setLngLat([correctLng, correctLat])
+        .setPopup(new maplibregl.Popup({ offset: 12 }).setText('Correct Location'))
+        .addTo(this.map);
+    this.correctMarker.togglePopup();
+
+    // Calculate distance
+    const d = this.calculateDistance(correctLat, correctLng, myGuess.lat, myGuess.lng);
+    const km = (d / 1000).toFixed(2);
+
+    this.map.flyTo({ center: [correctLng, correctLat], zoom: 6 });
+
+    let msg = `Round Over! The correct location is marked in <strong>green</strong>. You were <strong>${km} km</strong> away.`;
+    this.updateStatus(this.getRoundStatus(msg));
+
+    // Wait and start the next round
+    setTimeout(() => {
+        this.updateStatus(this.getRoundStatus('Starting a new round...'));
+        this.startNewRound();
+    }, 5000);
+  }
+
   endGameAsHost() {
     const finalResults = {
       finalScores: this.playerScores,
@@ -294,6 +360,26 @@ class StreetViewGame {
     };
     this.sendMapData('game-end', finalResults);
     this.endGame(finalResults);
+  }
+
+  // 🆕 New method for single-player end game
+  endGameSolo() {
+    this.updateStatus(`Game Over! You completed ${MAX_ROUNDS} rounds.`);
+    
+    const resultsHtml = `
+      <h2>Game Over</h2>
+      <p>Congratulations, ${this.userName}, you completed ${MAX_ROUNDS} rounds in solo mode!</p>
+      <p>Try to improve your distances next time!</p>
+      <button onclick="window.location.reload()">Start a New Game</button>
+    `;
+    document.getElementById('imageViewContainer').innerHTML = resultsHtml;
+
+    this.currentRound = 0;
+    // Clear markers
+    if (this.myMarker) { this.myMarker.remove(); this.myMarker = null; }
+    if (this.correctMarker) { this.correctMarker.remove(); this.correctMarker = null; }
+    Object.values(this.peerMarkers).forEach(m => m.remove());
+    this.peerMarkers = {};
   }
 
   endGame(data) {
@@ -315,34 +401,34 @@ class StreetViewGame {
     finalMessage = finalMessage.slice(0, -2);
     finalMessage += `. The winner is <strong>${winnerName}</strong> with ${winningScore} points! 🏆`;
 
-    let resultsHtml = `
-      <h2>Final Standings</h2>
-      <p>${finalMessage}</p>
-      <h3 style="color:#00796b; margin-top: 1rem;">Round-by-Round Breakdown</h3>
-      <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9em;">
-          <thead>
-              <tr style="background-color: #f0f0f0;">
-                  <th style="padding: 8px; border: 1px solid #ddd;">Round</th>
-                  <th style="padding: 8px; border: 1px solid #ddd;">Painting</th>
-                  <th style="padding: 8px; border: 1px solid #ddd;">Round Winner</th>
-                  <th style="padding: 8px; border: 1px solid #ddd;">Distances (km)</th>
-              </tr>
-          </thead>
-          <tbody>
+    let resultsHtml = `<br>
+      <h2>Final Standings</h2><br>
+      <p>${finalMessage}</p><br>
+      <h3 style="color:#00796b; margin-top: 1rem;">Round-by-Round Breakdown</h3><br>
+      <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9em;"><br>
+          <thead><br>
+              <tr style="background-color: #f0f0f0;"><br>
+                  <th style="padding: 8px; border: 1px solid #ddd;">Round</th><br>
+                  <th style="padding: 8px; border: 1px solid #ddd;">Painting</th><br>
+                  <th style="padding: 8px; border: 1px solid #ddd;">Round Winner</th><br>
+                  <th style="padding: 8px; border: 1px solid #ddd;">Distances (km)</th><br>
+              </tr><br>
+          </thead><br>
+          <tbody><br>
     `;
 
     roundHistory.forEach(r => {
       const distanceText = Array.isArray(r.distances) ? r.distances.map(d =>
-        `${d.userName}: ${(d.distance / 1000).toFixed(1)}`
+        `${d.userName}: ${(d.distance / 1000).toFixed(1)}`<br>
       ).join(' | ') : 'N/A';
 
-      resultsHtml += `
-          <tr>
-              <td style="padding: 8px; border: 1px solid #ddd;">${r.round}</td>
-              <td style="padding: 8px; border: 1px solid #ddd;">${r.paintingName || 'Unknown'}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${r.winnerName || 'N/A'}</td>
-              <td style="padding: 8px; border: 1px solid #ddd; font-size: 0.85em;">${distanceText}</td>
-          </tr>
+      resultsHtml += `<br>
+          <tr><br>
+              <td style="padding: 8px; border: 1px solid #ddd;">${r.round}</td><br>
+              <td style="padding: 8px; border: 1px solid #ddd;">${r.paintingName || 'Unknown'}</td><br>
+              <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${r.winnerName || 'N/A'}</td><br>
+              <td style="padding: 8px; border: 1px solid #ddd; font-size: 0.85em;">${distanceText}</td><br>
+          </tr><br>
       `;
     });
 
@@ -387,6 +473,9 @@ async function createSession() {
   game.roomId = room;
   game.userName = name;
   game.isHost = true;
+  // 🆕 Ensure isSinglePlayer is false
+  game.isSinglePlayer = false; 
+  
   await game.connectToTripgeoHub();
   await game.signalRConnection.invoke('JoinWebRTCSession', `map_${room}`, game.myUserId);
   game.updateStatus(`Room "${room}" created. Waiting for players...`);
@@ -401,6 +490,9 @@ async function joinSession() {
   game.roomId = room;
   game.userName = name;
   game.isHost = false;
+  // 🆕 Ensure isSinglePlayer is false
+  game.isSinglePlayer = false;
+  
   await game.connectToTripgeoHub();
   await game.signalRConnection.invoke('JoinWebRTCSession', `map_${room}`, game.myUserId);
   game.updateStatus(`Joining room "${room}"...`);
@@ -408,3 +500,29 @@ async function joinSession() {
   document.getElementById('joinRoomBtn').disabled = true;
 }
 
+// 🆕 New function to start the single-player game
+function startSinglePlayer() {
+    const name = document.getElementById('userNameInput').value.trim();
+    if (!name) { 
+        alert('Please enter your name to play solo!'); 
+        return; 
+    }
+
+    game.roomId = `solo_${game.myUserId}`; // Unique room ID for solo play
+    game.userName = name;
+    game.isHost = true; // Solo player is always the 'host'
+    game.isSinglePlayer = true; // SET THIS FLAG
+
+    // Disable connection buttons and icon
+    document.getElementById('roomIdInput').disabled = true; // Lock room ID in solo mode
+    document.getElementById('createRoomBtn').disabled = true;
+    document.getElementById('joinRoomBtn').disabled = true;
+    document.getElementById('singlePlayerBtn').style.opacity = 0.5;
+    document.getElementById('singlePlayerBtn').style.cursor = 'default';
+
+    game.updateStatus(`Starting solo game for ${name}...`);
+    game.startNewRound(); 
+}
+
+// 🆕 Attach the single player function to the icon's click event
+document.getElementById('singlePlayerBtn').onclick = startSinglePlayer;
