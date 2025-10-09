@@ -418,9 +418,9 @@ class StreetViewGame {
     `;
 
     roundHistory.forEach(r => {
-      const distanceText = Array.isArray(r.distances) ? r.distances.map(d =>
-        `${d.userName}: ${(d.distance / 1000).toFixed(1)}`<br>
-      ).join(' | ') : 'N/A';
+      const distanceText = Array.isArray(r.distances)
+    ? r.distances.map(d => `${d.userName}: ${(d.distance / 1000).toFixed(1)} km`).join(' | ')
+    : 'N/A';
 
       resultsHtml += `<br>
           <tr><br>
