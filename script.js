@@ -183,14 +183,18 @@ class StreetViewGame {
   showPainting(painting) {
     this.currentProperty = painting;
     const BASE_IMAGE_URL = 'https://mapsmania.github.io/backdrop/';
-    const imgHtml = `<br>
-      <img src="${BASE_IMAGE_URL}${painting.imageUrl}" <br>
-           alt="${painting.name}" <br>
-           onclick="this.requestFullscreen()" <br>
-           title="${painting.name}" <br>
-           width="400"><br>
-      <p>${painting.name} ${painting.details}</p><br>
-    `;
+    const imgHtml = `
+  <img 
+    src="${BASE_IMAGE_URL}${painting.imageUrl}"
+    alt="${painting.name}"
+    title="${painting.name}"
+    width="400"
+    style="cursor: pointer; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);"
+    onclick="this.requestFullscreen()"
+  />
+  <p><strong>${painting.name}</strong> ${painting.details}</p>
+`;
+
     document.getElementById('imageViewContainer').innerHTML = imgHtml;
     
     // 🆕 Update status based on mode
