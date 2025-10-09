@@ -474,34 +474,46 @@ async function createSession() {
   const room = document.getElementById('roomIdInput').value.trim();
   const name = document.getElementById('userNameInput').value.trim();
   if (!room || !name) { alert('Enter room and name'); return; }
+
   game.roomId = room;
   game.userName = name;
   game.isHost = true;
-  // 🆕 Ensure isSinglePlayer is false
   game.isSinglePlayer = false; 
   
   await game.connectToTripgeoHub();
   await game.signalRConnection.invoke('JoinWebRTCSession', `map_${room}`, game.myUserId);
+
   game.updateStatus(`Room "${room}" created. Waiting for players...`);
+  
+  // Disable multiplayer + solo buttons
   document.getElementById('createRoomBtn').disabled = true;
   document.getElementById('joinRoomBtn').disabled = true;
+  document.getElementById('singlePlayerBtn').disabled = true;
+  document.getElementById('singlePlayerBtn').style.opacity = 0.5;
+  document.getElementById('singlePlayerBtn').style.cursor = 'default';
 }
 
 async function joinSession() {
   const room = document.getElementById('roomIdInput').value.trim();
   const name = document.getElementById('userNameInput').value.trim();
   if (!room || !name) { alert('Enter room and name'); return; }
+
   game.roomId = room;
   game.userName = name;
   game.isHost = false;
-  // 🆕 Ensure isSinglePlayer is false
   game.isSinglePlayer = false;
   
   await game.connectToTripgeoHub();
   await game.signalRConnection.invoke('JoinWebRTCSession', `map_${room}`, game.myUserId);
+
   game.updateStatus(`Joining room "${room}"...`);
+  
+  // Disable multiplayer + solo buttons
   document.getElementById('createRoomBtn').disabled = true;
   document.getElementById('joinRoomBtn').disabled = true;
+  document.getElementById('singlePlayerBtn').disabled = true;
+  document.getElementById('singlePlayerBtn').style.opacity = 0.5;
+  document.getElementById('singlePlayerBtn').style.cursor = 'default';
 }
 
 // 🆕 New function to start the single-player game
