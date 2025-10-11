@@ -517,12 +517,12 @@ async function joinSession() {
   document.getElementById('singlePlayerBtn').style.cursor = 'default';
 }
 
-// 🆕 New function to start the single-player game
+// 🆕 single-player game
 function startSinglePlayer() {
-    const name = document.getElementById('userNameInput').value.trim();
-    if (!name) { 
-        alert('Please enter your name to play solo!'); 
-        return; 
+    let name = document.getElementById('userNameInput').value.trim();
+    if (!name) {
+        // Default to "Player" + random number if no name entered
+        name = `Player${Math.floor(Math.random() * 1000)}`;
     }
 
     game.roomId = `solo_${game.myUserId}`; // Unique room ID for solo play
@@ -530,14 +530,14 @@ function startSinglePlayer() {
     game.isHost = true; // Solo player is always the 'host'
     game.isSinglePlayer = true; // SET THIS FLAG
 
-    // Disable connection buttons and icon
-    document.getElementById('roomIdInput').disabled = true; // Lock room ID in solo mode
+    // Disable multiplayer buttons
+    document.getElementById('roomIdInput').disabled = true;
     document.getElementById('createRoomBtn').disabled = true;
     document.getElementById('joinRoomBtn').disabled = true;
     document.getElementById('singlePlayerBtn').style.opacity = 0.5;
     document.getElementById('singlePlayerBtn').style.cursor = 'default';
 
     game.updateStatus(`Starting solo game for ${name}...`);
-    game.startNewRound(); 
+    game.startNewRound();
 }
 
