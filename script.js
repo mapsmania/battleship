@@ -44,12 +44,6 @@ class StreetViewGame {
       this.updateStatus('Game not started. Click "Play Solo" or wait for the host to start the first round.');
       return;
     }
-    
-    // 🆕 SINGLE PLAYER LOGIC: If a guess is submitted, the next click reveals the results.
-    if (this.isSinglePlayer && this.myGuessSubmitted) {
-        this.showResultsSolo(); 
-        return;
-    }
 
     if (this.myGuessSubmitted && !this.isSinglePlayer) { // Multiplayer check
       this.updateStatus(this.getRoundStatus('Guess locked. Waiting for the opponent.'));
@@ -68,20 +62,21 @@ class StreetViewGame {
     const guessData = { userId: this.myUserId, userName: this.userName, lng, lat };
     this.guesses[this.myUserId] = guessData;
 
-    // 🆕 Conditional: Only send data if NOT single-player
     if (!this.isSinglePlayer) {
+        // Multiplayer logic — send guess to peer
         this.sendMapData('guess-submit', guessData);
-    }
-    
-    this.updateStatus(this.getRoundStatus(this.isSinglePlayer 
-        ? 'Guess submitted. Click on the map again to reveal the location.' 
-        : 'Guess submitted. Waiting for the opponent...'));
+        this.updateStatus(this.getRoundStatus('Guess submitted. Waiting for the opponent...'));
 
-    // Multiplayer check for game end
-    if (!this.isSinglePlayer && this.isHost && Object.keys(this.guesses).length === 2) {
-      this.calculateWinner();
+        // If both players have guessed, calculate winner
+        if (this.isHost && Object.keys(this.guesses).length === 2) {
+          this.calculateWinner();
+        }
+    } else {
+        // 🆕 Single player: immediately show results
+        this.showResultsSolo();
     }
-  }
+}
+
 
   async connectToTripgeoHub() {
     // 🆕 If single-player, skip connection
