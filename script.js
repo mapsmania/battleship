@@ -341,9 +341,17 @@ class StreetViewGame {
     const d = this.calculateDistance(correctLat, correctLng, myGuess.lat, myGuess.lng);
     const km = (d / 1000).toFixed(2);
 
+    // 🆕 Record round result
+    this.roundHistory.push({
+        round: this.currentRound,
+        paintingName: this.currentProperty.name,
+        paintingUrl: this.currentProperty.imageUrl,
+        distanceKm: km
+    });
+
     this.map.flyTo({ center: [correctLng, correctLat], zoom: 6 });
 
-    let msg = `Round Over! The correct location is marked in <strong>green</strong>. You were <strong>${km} km</strong> away.`;
+    const msg = `Round Over! The correct location is marked in <strong>green</strong>. You were <strong>${km} km</strong> away.`;
     this.updateStatus(this.getRoundStatus(msg));
 
     // Wait and start the next round
@@ -351,7 +359,8 @@ class StreetViewGame {
         this.updateStatus(this.getRoundStatus('Starting a new round...'));
         this.startNewRound();
     }, 5000);
-  }
+}
+
 
   endGameAsHost() {
     const finalResults = {
@@ -364,23 +373,55 @@ class StreetViewGame {
 
   // 🆕 New method for single-player end game
   endGameSolo() {
-    this.updateStatus(`Game Over! You completed ${MAX_ROUNDS} rounds.`);
-    
-    const resultsHtml = `
+    // Build results table
+    let resultsHtml = `
       <h2>Game Over</h2>
-      <p>Congratulations, ${this.userName}, you completed ${MAX_ROUNDS} rounds in solo mode!</p>
-      <p>Try to improve your distances next time!</p>
+      <p>Congratulations, ${this.userName || 'Player'}! You completed ${MAX_ROUNDS} rounds in solo mode.</p>
+      <h3 style="color:#00796b; margin-top: 1rem;">Round-by-Round Results</h3>
+      <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9em;">
+        <thead>
+          <tr style="background-color: #f0f0f0;">
+            <th style="padding: 8px; border: 1px solid #ddd;">Round</th>
+            <th style="padding: 8px; border: 1px solid #ddd;">Painting</th>
+            <th style="padding: 8px; border: 1px solid #ddd;">Distance (km)</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    this.roundHistory.forEach(r => {
+        resultsHtml += `
+          <tr>
+            <td style="padding: 8px; border: 1px solid #ddd;">${r.round}</td>
+            <td style="padding: 8px; border: 1px solid #ddd;">
+              <img src="https://mapsmania.github.io/backdrop/${r.paintingUrl}" alt="${r.paintingName}" width="80" style="border-radius:4px; vertical-align:middle; margin-right:6px;">
+              ${r.paintingName || 'Unknown'}
+            </td>
+            <td style="padding: 8px; border: 1px solid #ddd;">${r.distanceKm}</td>
+          </tr>
+        `;
+    });
+
+    resultsHtml += `
+        </tbody>
+      </table>
+      <br>
       <button onclick="window.location.reload()">Start a New Game</button>
     `;
-    document.getElementById('imageViewContainer').innerHTML = resultsHtml;
 
+    // Show final summary
+    document.getElementById('imageViewContainer').innerHTML = resultsHtml;
+    this.updateStatus(`Game Over! You completed ${MAX_ROUNDS} rounds.`);
+
+    // Reset game state
     this.currentRound = 0;
-    // Clear markers
     if (this.myMarker) { this.myMarker.remove(); this.myMarker = null; }
     if (this.correctMarker) { this.correctMarker.remove(); this.correctMarker = null; }
     Object.values(this.peerMarkers).forEach(m => m.remove());
     this.peerMarkers = {};
-  }
+    this.roundHistory = []; // clear history for next run
+}
+
 
   endGame(data) {
     const { finalScores, roundHistory } = data;
