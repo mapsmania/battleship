@@ -292,13 +292,30 @@ class StreetViewGame {
     });
 
     // Show correct location
-    this.correctMarker = new maplibregl.Marker({ color: '#00cc00' })
-        .setLngLat([clng, clat])
-        .setPopup(new maplibregl.Popup({ offset: 12 }).setText('Correct Location'))
-        .addTo(this.map);
-    this.correctMarker.togglePopup();
+    // Show correct location
+this.correctMarker = new maplibregl.Marker({ color: '#00cc00' })
+    .setLngLat([clng, clat])
+    .setPopup(new maplibregl.Popup({ offset: 12 }).setText('Correct Location'))
+    .addTo(this.map);
+this.correctMarker.togglePopup();
 
-    this.map.flyTo({ center: [clng, clat], zoom: 6 });
+// 🆕 Automatically fit bounds to show both player markers + correct location
+const bounds = new maplibregl.LngLatBounds();
+
+// Add both players' guesses
+Object.values(this.guesses).forEach(g => {
+    bounds.extend([g.lng, g.lat]);
+});
+
+// Add the correct location
+bounds.extend([clng, clat]);
+
+// Apply bounds to the map with padding
+this.map.fitBounds(bounds, {
+    padding: { top: 50, bottom: 50, left: 50, right: 50 },
+    animate: true,
+    duration: 1200
+});
 
     let msg = `Round Over! The correct location is marked in <strong>green</strong>. <strong>${results[winnerId].userName}</strong> wins!`;
     Object.keys(results).forEach(uid => {
