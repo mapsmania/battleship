@@ -347,7 +347,7 @@ this.map.fitBounds(bounds, {
     const correctLng = this.currentProperty.lng;
     const myGuess = this.guesses[this.myUserId];
 
-    // Show correct location
+    // Show correct location marker
     this.correctMarker = new maplibregl.Marker({ color: '#00cc00' })
         .setLngLat([correctLng, correctLat])
         .setPopup(new maplibregl.Popup({ offset: 12 }).setText('Correct Location'))
@@ -358,7 +358,7 @@ this.map.fitBounds(bounds, {
     const d = this.calculateDistance(correctLat, correctLng, myGuess.lat, myGuess.lng);
     const km = (d / 1000).toFixed(2);
 
-    // 🆕 Record round result
+    // Record round result
     this.roundHistory.push({
         round: this.currentRound,
         paintingName: this.currentProperty.name,
@@ -366,12 +366,21 @@ this.map.fitBounds(bounds, {
         distanceKm: km
     });
 
-    this.map.flyTo({ center: [correctLng, correctLat], zoom: 6 });
+    // 🆕 Automatically fit bounds to show your guess + correct location
+    const bounds = new maplibregl.LngLatBounds();
+    bounds.extend([myGuess.lng, myGuess.lat]);
+    bounds.extend([correctLng, correctLat]);
+    this.map.fitBounds(bounds, {
+        padding: { top: 50, bottom: 50, left: 50, right: 50 },
+        animate: true,
+        duration: 1200
+    });
 
+    // Update status
     const msg = `Round Over! The correct location is marked in <strong>green</strong>. You were <strong>${km} km</strong> away.`;
     this.updateStatus(this.getRoundStatus(msg));
 
-    // Wait and start the next round
+    // Wait, then start next round
     setTimeout(() => {
         this.updateStatus(this.getRoundStatus('Starting a new round...'));
         this.startNewRound();
