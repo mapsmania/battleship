@@ -281,15 +281,21 @@ class StreetViewGame {
     const { correctLocation: { lat: clat, lng: clng }, winnerId, currentScores } = results;
 
     // Show both players' guesses
-    Object.keys(this.guesses).forEach(uid => {
-      const g = this.guesses[uid];
-      const color = (uid == this.myUserId) ? '#00796b' : '#d9534f';
-      const marker = new maplibregl.Marker({ color })
-          .setLngLat([g.lng, g.lat])
-          .setPopup(new maplibregl.Popup({ offset: 12 }).setText(g.userName))
-          .addTo(this.map);
-      this.peerMarkers[uid] = marker;
-    });
+    // Show both players' guesses and popups
+Object.keys(this.guesses).forEach(uid => {
+    const g = this.guesses[uid];
+    const color = (uid == this.myUserId) ? '#00796b' : '#d9534f';
+    const marker = new maplibregl.Marker({ color })
+        .setLngLat([g.lng, g.lat])
+        .setPopup(new maplibregl.Popup({ offset: 12 }).setText(g.userName))
+        .addTo(this.map);
+
+    // 🆕 Automatically show the popup for both players
+    marker.togglePopup();
+
+    this.peerMarkers[uid] = marker;
+});
+
 
     // Show correct location
     // Show correct location
