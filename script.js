@@ -411,7 +411,6 @@ this.map.fitBounds(bounds, {
   // Build simplified results
   let resultsHtml = `
     <h2>Game Over</h2>
-    <p>Well done, ${this.userName || 'Player'}! You completed ${MAX_ROUNDS} rounds in solo mode.</p>
     <h3 style="color:#00796b; margin-top: 1rem;">Your Results</h3>
   `;
 
