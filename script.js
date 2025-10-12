@@ -405,34 +405,35 @@ this.map.fitBounds(bounds, {
 
   // 🆕 New method for single-player end game
   endGameSolo() {
-    // Build results table
-    let resultsHtml = `
-      <h2>Game Over</h2>
-      <p>Congratulations, ${this.userName || 'Player'}! You completed ${MAX_ROUNDS} rounds in solo mode.</p>
-      <h3 style="color:#00796b; margin-top: 1rem;">Round-by-Round Results</h3>
-      <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9em;">
-        <thead>
-          <tr style="background-color: #f0f0f0;">
-            <th style="padding: 8px; border: 1px solid #ddd;">Round</th>
-            <th style="padding: 8px; border: 1px solid #ddd;">Painting</th>
-            <th style="padding: 8px; border: 1px solid #ddd;">Distance (km)</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
+  // Calculate total distance
+  const totalDistance = this.roundHistory.reduce((sum, r) => sum + (parseFloat(r.distanceKm) || 0), 0);
 
-    this.roundHistory.forEach(r => {
-        resultsHtml += `
-          <tr>
-            <td style="padding: 8px; border: 1px solid #ddd;">${r.round}</td>
-            <td style="padding: 8px; border: 1px solid #ddd;">
-              <img src="https://mapsmania.github.io/backdrop/${r.paintingUrl}" alt="${r.paintingName}" width="80" style="border-radius:4px; vertical-align:middle; margin-right:6px;">
-              ${r.paintingName || 'Unknown'}
-            </td>
-            <td style="padding: 8px; border: 1px solid #ddd;">${r.distanceKm}</td>
-          </tr>
-        `;
-    });
+  // Build simplified results
+  let resultsHtml = `
+    <h2>Game Over</h2>
+    <p>Well done, ${this.userName || 'Player'}! You completed ${MAX_ROUNDS} rounds in solo mode.</p>
+    <h3 style="color:#00796b; margin-top: 1rem;">Your Results</h3>
+  `;
+
+  this.roundHistory.forEach(r => {
+    resultsHtml += `
+      <p style="margin: 4px 0;">
+        <strong>Round ${r.round}:</strong> ${r.distanceKm} km away
+      </p>
+    `;
+  });
+
+  resultsHtml += `
+    <hr style="margin: 1rem 0;">
+    <p style="font-weight: 600;">Total Distance: ${totalDistance.toFixed(2)} km</p>
+    <br>
+    <button class="game-button" onclick="window.location.reload()">Play Again</button>
+  `;
+
+  // Insert into the results container
+  document.querySelector('.content-area').innerHTML = resultsHtml;
+}
+
 
     resultsHtml += `
   </tbody>
