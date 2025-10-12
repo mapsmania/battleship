@@ -573,7 +573,7 @@ const paintingLocations = [
     name: "View of the Łazienki Palace in summer",
     lat: 52.21505051523167,
     lng: 21.03580040216378,
-    imageUrl: "images/Marcin_Zaleski_-_View_of_the_%C5%81azienki_Palace_in_summer_-_MP_237_MNW_-_National_Museum_in_Warsaw.jpg",
+    imageUrl: "images/azienki_Palace.jpg",
     details: "(1837) by Marcin Zaleski <br><br> From the <a href='https://cyfrowe.mnw.art.pl/en/home'>National Museum in Warsaw</a>."
   },
   {
