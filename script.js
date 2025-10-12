@@ -435,26 +435,6 @@ this.map.fitBounds(bounds, {
 }
 
 
-    resultsHtml += `
-  </tbody>
-</table>
-<br>
-<button class="game-button" onclick="window.location.reload()">Play Again</button>
-`;
-
-
-    // Show final summary
-    document.getElementById('imageViewContainer').innerHTML = resultsHtml;
-    this.updateStatus(`Game Over! You completed ${MAX_ROUNDS} rounds.`);
-
-    // Reset game state
-    this.currentRound = 0;
-    if (this.myMarker) { this.myMarker.remove(); this.myMarker = null; }
-    if (this.correctMarker) { this.correctMarker.remove(); this.correctMarker = null; }
-    Object.values(this.peerMarkers).forEach(m => m.remove());
-    this.peerMarkers = {};
-    this.roundHistory = []; // clear history for next run
-}
 
 
   endGame(data) {
