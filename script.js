@@ -435,11 +435,12 @@ this.map.fitBounds(bounds, {
     });
 
     resultsHtml += `
-        </tbody>
-      </table>
-      <br>
-      <button onclick="window.location.reload()">Start a New Game</button>
-    `;
+  </tbody>
+</table>
+<br>
+<button class="game-button" onclick="window.location.reload()">Play Again</button>
+`;
+
 
     // Show final summary
     document.getElementById('imageViewContainer').innerHTML = resultsHtml;
