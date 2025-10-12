@@ -457,9 +457,9 @@ this.map.fitBounds(bounds, {
     finalMessage += `. The winner is <strong>${winnerName}</strong> with ${winningScore} points! 🏆`;
 
     let resultsHtml = `<br>
-      <h2>Final Standings</h2><br>
-      <p>${finalMessage}</p><br>
-      <h3 style="color:#00796b; margin-top: 1rem;">Round-by-Round Breakdown</h3><br>
+      <h2>Final Standings</h2>
+      <p>${finalMessage}</p>
+      <h3 style="color:#00796b; margin-top: 1rem;">Round-by-Round Breakdown</h3>
       <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9em;"><br>
           <thead><br>
               <tr style="background-color: #f0f0f0;"><br>
