@@ -430,7 +430,8 @@ this.map.fitBounds(bounds, {
   `;
 
   // Insert into the results container
-  document.querySelector('.content-area').innerHTML = resultsHtml;
+  document.querySelector('#imageViewContainer').innerHTML = resultsHtml;
+
 }
 
 
