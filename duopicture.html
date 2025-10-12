@@ -55,16 +55,19 @@
       border-radius: 8px;
     }
 
-    #connectionPanel button {
-      background: #00796b;
-      color: #fff;
-      border: none;
-      cursor: pointer;
-    }
+    .game-button {
+  padding: .5rem .8rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  background: #00796b;
+  color: #fff;
+  cursor: pointer;
+}
 
-    #connectionPanel button:disabled {
-      background: #9e9e9e
-    }
+.game-button:disabled {
+  background: #9e9e9e;
+}
 
     /* * FLEX CONTAINER FOR DESKTOP LAYOUT (>= 769px) */
     .content-area {
@@ -143,9 +146,9 @@
     <div id="connectionPanel">
       <input id="roomIdInput" placeholder="Room ID">
       <input id="userNameInput" placeholder="Your Name">
-      <button id="createRoomBtn" onclick="createSession()">Create Room</button>
-      <button id="joinRoomBtn" onclick="joinSession()">Join Room</button>
-      <button id="singlePlayerBtn" onclick="startSinglePlayer()">Play Solo</button>
+      <button class="game-button" id="createRoomBtn" onclick="createSession()">Create Room</button>
+      <button class="game-button" id="joinRoomBtn" onclick="joinSession()">Join Room</button>
+      <button class="game-button" id="singlePlayerBtn" onclick="startSinglePlayer()">Play Solo</button>
     </div>
 
     <div class="content-area">
