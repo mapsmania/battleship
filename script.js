@@ -456,35 +456,36 @@ this.map.fitBounds(bounds, {
     finalMessage = finalMessage.slice(0, -2);
     finalMessage += `. The winner is <strong>${winnerName}</strong> with ${winningScore} points! 🏆`;
 
-    let resultsHtml = `<br>
-      <h2>Final Standings</h2>
-      <p>${finalMessage}</p>
-      <h3 style="color:#00796b; margin-top: 1rem;">Round-by-Round Breakdown</h3>
-      <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9em;"><br>
-          <thead><br>
-              <tr style="background-color: #f0f0f0;"><br>
-                  <th style="padding: 8px; border: 1px solid #ddd;">Round</th><br>
-                  <th style="padding: 8px; border: 1px solid #ddd;">Painting</th><br>
-                  <th style="padding: 8px; border: 1px solid #ddd;">Round Winner</th><br>
-                  <th style="padding: 8px; border: 1px solid #ddd;">Distances (km)</th><br>
-              </tr><br>
-          </thead><br>
-          <tbody><br>
-    `;
+    let resultsHtml = `
+  <h2>Final Standings</h2>
+  <p>${finalMessage}</p>
+  <h3 style="color:#00796b; margin-top: 1rem;">Round-by-Round Breakdown</h3>
+  <table style="width:100%; border-collapse: collapse; text-align: left; font-size: 0.9em;">
+    <thead>
+      <tr style="background-color: #f0f0f0;">
+        <th style="padding: 8px; border: 1px solid #ddd;">Round</th>
+        <th style="padding: 8px; border: 1px solid #ddd;">Painting</th>
+        <th style="padding: 8px; border: 1px solid #ddd;">Round Winner</th>
+        <th style="padding: 8px; border: 1px solid #ddd;">Distances (km)</th>
+      </tr>
+    </thead>
+    <tbody>
+`;
 
     roundHistory.forEach(r => {
       const distanceText = Array.isArray(r.distances)
     ? r.distances.map(d => `${d.userName}: ${(d.distance / 1000).toFixed(1)} km`).join(' | ')
     : 'N/A';
 
-      resultsHtml += `<br>
-          <tr><br>
-              <td style="padding: 8px; border: 1px solid #ddd;">${r.round}</td><br>
-              <td style="padding: 8px; border: 1px solid #ddd;">${r.paintingName || 'Unknown'}</td><br>
-              <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${r.winnerName || 'N/A'}</td><br>
-              <td style="padding: 8px; border: 1px solid #ddd; font-size: 0.85em;">${distanceText}</td><br>
-          </tr><br>
-      `;
+      resultsHtml += `
+  <tr>
+    <td style="padding: 8px; border: 1px solid #ddd;">${r.round}</td>
+    <td style="padding: 8px; border: 1px solid #ddd;">${r.paintingName || 'Unknown'}</td>
+    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${r.winnerName || 'N/A'}</td>
+    <td style="padding: 8px; border: 1px solid #ddd; font-size: 0.85em;">${distanceText}</td>
+  </tr>
+`;
+
     });
 
     resultsHtml += `</tbody></table>`;
