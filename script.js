@@ -207,6 +207,17 @@ class StreetViewGame {
     if (this.correctMarker) { this.correctMarker.remove(); this.correctMarker = null; }
     Object.values(this.peerMarkers).forEach(m => m.remove());
     this.peerMarkers = {};
+
+    // 🆕 Reset map to starting position and zoom
+    if (this.map) {
+      this.map.flyTo({
+        center: [-30, 30],
+        zoom: 1.4,
+        speed: 0.8,    // smooth animation
+        curve: 1.2,
+        essential: true
+      });
+    }
   }
 
   sendMapData(type, data) {
