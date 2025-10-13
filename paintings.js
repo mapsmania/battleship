@@ -517,7 +517,7 @@ const paintingLocations = [
     name: "Das Rathaus in Gmunden",
     lat: 47.918124059145576,
     lng: 13.799400670121077,
-    imageUrl: "images/1280px-Rudolf_von_Alt_-_Das_Rathaus_in_Gmunden_-_988_-_%C3%96sterreichische_Galerie_Belvedere.jpg",
+    imageUrl: "images/Belvedere.jpg",
     details: "(1860) by Rudolf von Alt. <br><br> From the <a href='https://sammlung.belvedere.at/objects/6770/das-rathaus-in-gmunden?'>Belvedere Gallery, Austria</a>."
   },
   {
@@ -930,7 +930,7 @@ const paintingLocations = [
     name: "View from the Castle Square towards Krakowskie Przedmieście",
     lat: 52.247247395461706,
     lng: 21.01340040663948,
-    imageUrl: "images/View%20from%20the%20Castle%20Square%20towards%20Krakowskie%20Przedmie%C5%9Bcie.jpg",
+    imageUrl: "images/CastleSquare.jpg",
     details: "(C19th) by Filip Romanowski <br><br> From the <a href='https://cyfrowe.mnw.art.pl/en/catalog/440455'>National Museum in Warsaw</a>."
   },
   {
