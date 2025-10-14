@@ -603,35 +603,44 @@ function startSinglePlayer() {
     game.startNewRound();
 }
 
-// info-button modal element
-const modal = document.getElementById("infoModal");
+// --- Modal Logic (inside script.js) ---
 
-// Get the button that opens the modal
-const infoButton = document.querySelector(".info-button");
+document.addEventListener('DOMContentLoaded', function() {
+    // Get the modal element
+    const modal = document.getElementById("infoModal");
 
-// Get the <span> element that closes the modal
-const closeButton = document.querySelector(".close-button");
+    // Get the button that opens the modal
+    // Use the specific selector to ensure we find the button inside the panel
+    const infoButton = document.querySelector("#connectionPanel .info-button"); 
 
-// When the user clicks the info button, open the modal
-infoButton.onclick = function() {
-    modal.style.display = "block";
-}
+    // Get the <span> element that closes the modal
+    const closeButton = document.querySelector(".close-button");
 
-// When the user clicks on (x), close the modal
-closeButton.onclick = function() {
-    modal.style.display = "none";
-}
+    // Check if the button and modal exist before adding listeners
+    if (infoButton && modal) {
+        // When the user clicks the info button, open the modal
+        infoButton.onclick = function() {
+            modal.style.display = "block";
+        }
 
-// When the user clicks anywhere outside of the modal, close it
-window.onclick = function(event) {
-    if (event.target === modal) {
-        modal.style.display = "none";
-    }
-}
+        // When the user clicks on (x), close the modal
+        closeButton.onclick = function() {
+            modal.style.display = "none";
+        }
 
-// Optional: Add a keypress listener to close with the ESC key
-document.addEventListener('keydown', function(event) {
-    if (event.key === 'Escape' && modal.style.display === 'block') {
-        modal.style.display = 'none';
+        // When the user clicks anywhere outside of the modal, close it
+        window.onclick = function(event) {
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        // Optional: Add a keypress listener to close with the ESC key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && modal.style.display === 'block') {
+                modal.style.display = 'none';
+            }
+        });
     }
 });
+
