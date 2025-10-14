@@ -1,4 +1,3 @@
-
 const MAX_ROUNDS = 10; // Define the maximum number of rounds
 
 class StreetViewGame {
