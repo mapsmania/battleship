@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -55,6 +56,15 @@
       border-radius: 8px;
     }
 
+    #connectionPanel input {
+    /* Set the minimum size (starting point) */
+    flex-basis: 120px;   
+    /* Allow them to grow, but only up to a limit */
+    flex-grow: 1;  
+    /* Set a maximum width */
+    max-width: 200px; 
+    }
+
     .game-button {
   padding: .5rem .8rem;
   font-size: 1rem;
@@ -109,6 +119,82 @@
       min-height: 1.5rem
     }
 
+     .info-button {
+       border: none;
+       background: none; 
+       cursor: pointer;
+       padding: 0;
+    }
+
+    /* Add this new rule below your existing .info-button block */
+#connectionPanel .info-button {
+    border: none;
+    background: none;
+    padding: 0;
+}
+
+      /* Modal (Pop-up) Styles */
+.modal {
+  /* Hidden by default */
+  display: none; 
+  /* Stay in place */
+  position: fixed; 
+  /* Sit on top */
+  z-index: 1000; 
+  /* Full screen width/height */
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%; 
+  /* Enable semi-transparent background */
+  overflow: auto;
+  background-color: rgba(0, 0, 0, 0.6); 
+}
+
+/* Modal Content Box */
+.modal-content {
+  background-color: #fefefe;
+  margin: 15% auto; /* 15% from the top and centered */
+  padding: 20px;
+  border: 1px solid #888;
+  width: 80%; /* Could be max-width: 500px for a better look */
+  max-width: 500px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  text-align: left;
+}
+
+/* Close Button (the ×) */
+.close-button {
+  color: #aaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: #000;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Style the instructions list */
+.modal-content h2 {
+    color: #00796b;
+    margin-top: 0;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+}
+
+.modal-content ol {
+    padding-left: 20px;
+}
+
+.modal-content li {
+    margin-bottom: 10px;
+}
+
     /* ---------------------------------------------------------------------- */
     /* * MOBILE STYLES (Screen size 768px and below) 📱 */
     @media(max-width:768px) {
@@ -149,6 +235,11 @@
       <button class="game-button" id="createRoomBtn" onclick="createSession()">Create Room</button>
       <button class="game-button" id="joinRoomBtn" onclick="joinSession()">Join Room</button>
       <button class="game-button" id="singlePlayerBtn" onclick="startSinglePlayer()">Play Solo</button>
+  <button class="info-button" aria-label="Information">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+        </svg>
+    </button>
     </div>
 
     <div class="content-area">
@@ -161,6 +252,24 @@
     </div>
     <p id="gameStatus">Create or join a room to start playing.</p>
   </div>
+
+    <div id="infoModal" class="modal">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        
+        <h2>Game Instructions</h2>
+        <p>Welcome to GeoGallery! Here's how to play:</p>
+        
+        <ol>
+            <li>**Connect:** Enter a Room ID and Your Name, then click "Create Room" or "Join Room."</li>
+            <li>**The Painting:** A painting will appear on the left. Study it closely.</li>
+            <li>**The Guess:** Click anywhere on the map on the right to place your marker. This is your guess for the location where the painting was created.</li>
+            <li>**Score:** After all players guess (or if you are playing solo), the real location is revealed, and your score is calculated based on the distance error.</li>
+        </ol>
+        
+        <p>Good luck!</p>
+    </div>
+</div>
 <script src="script.js"></script>
   
  </body>
