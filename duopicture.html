@@ -126,6 +126,12 @@
        padding: 0;
     }
 
+  .info-button svg {
+    /* This makes the SVG ignore mouse clicks, allowing the click 
+       to pass through to the parent button element. */
+    pointer-events: none;
+}
+
     /* Add this new rule below your existing .info-button block */
 #connectionPanel .info-button {
     border: none;
