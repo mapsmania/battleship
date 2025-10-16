@@ -368,7 +368,7 @@ const paintingLocations = [
     lat: 40.6730128,
     lng: -73.9845876,
     imageUrl: "images/ap36.123.1.jpg",
-    details: "(1865) by Unknown. <br><br> From the <a href='https://w",
+    details: "(1865) by Unknown. <br><br> From the <a href='https://www.metmuseum.org/art/collection/search/13015",
   },
   
   {
