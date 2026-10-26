@@ -351,6 +351,7 @@ h1 {
 
   <script>
     
+    
     // Create the Paris map
     const map = new maplibregl.Map({
       container: 'map',
@@ -385,55 +386,56 @@ h1 {
     const landmarks = {
       1: {
         name: 'Eiffel Tower',
-        coordinates: [2.2945, 48.8584]
+        coordinates: [2.2945, 48.8584],
+        image: 'https://mapsmania.github.io/battleship/eiffel.png'
       },
       2: {
         name: 'Notre-Dame Cathedral',
-        coordinates: [2.3499, 48.8529]
+        coordinates: [2.3499, 48.8529],
+        image: 'https://mapsmania.github.io/battleship/notre.png'
+      },
+      3: {
+        name: 'Musée du Louvre',
+        coordinates: [2.3364, 48.8606],
+        image: 'https://mapsmania.github.io/battleship/louvre.png'
       }
     };
 
-    // Custom landmark image markers
-const landmarkMarkers = [];
+    // Create custom landmark image markers
+    const landmarkMarkers = [];
 
-function createLandmarkMarker(name, imageUrl, coordinates) {
-  const markerElement = document.createElement('img');
+    function createLandmarkMarker(name, imageUrl, coordinates) {
+      const markerElement = document.createElement('img');
 
-  markerElement.className = 'landmark-marker';
-  markerElement.src = imageUrl;
-  markerElement.alt = name;
-  markerElement.title = name;
-  markerElement.width = 44;
-  markerElement.height = 44;
-  markerElement.draggable = false;
+      markerElement.className = 'landmark-marker';
+      markerElement.src = imageUrl;
+      markerElement.alt = name;
+      markerElement.title = name;
+      markerElement.width = 44;
+      markerElement.height = 44;
+      markerElement.draggable = false;
 
-  const marker = new maplibregl.Marker({
-    element: markerElement,
-    anchor: 'bottom'
-  })
-    .setLngLat(coordinates)
-    .addTo(map);
+      const marker = new maplibregl.Marker({
+        element: markerElement,
+        anchor: 'bottom'
+      })
+        .setLngLat(coordinates)
+        .addTo(map);
 
-  
+      // Markers remain visible throughout the game
+      landmarkMarkers.push(marker);
+    }
 
-  landmarkMarkers.push(marker);
-}
+    // Add all three markers
+    Object.values(landmarks).forEach(landmark => {
+      createLandmarkMarker(
+        landmark.name,
+        landmark.image,
+        landmark.coordinates
+      );
+    });
 
-createLandmarkMarker(
-  'Eiffel Tower',
-  'https://mapsmania.github.io/battleship/eiffel.png',
-  landmarks[1].coordinates
-);
-
-createLandmarkMarker(
-  'Notre-Dame Cathedral',
-  'https://mapsmania.github.io/battleship/notre.png',
-  landmarks[2].coordinates
-);
-
-
-
-
+    // Game settings
     const TILE_SIZE = 128;
     const MAX_DISTANCE_METRES = 150;
 
@@ -488,7 +490,7 @@ createLandmarkMarker(
       }
     }
 
-    // Remove the tile at the clicked screen position
+    // Reveal the tile at the clicked screen position
     function revealTile(point) {
       const col = Math.floor(point.x / TILE_SIZE);
       const row = Math.floor(point.y / TILE_SIZE);
@@ -504,7 +506,16 @@ createLandmarkMarker(
       }
     }
 
-    // Show the active question after the three-second preview
+    function getTileForCoordinates(coordinates) {
+  const point = map.project(coordinates);
+
+  return {
+    col: Math.floor(point.x / TILE_SIZE),
+    row: Math.floor(point.y / TILE_SIZE)
+  };
+}  
+
+    // Display the current question after the map preview
     function showQuestion() {
       shade.classList.add('is-revealed');
       tileFog.style.display = 'block';
@@ -545,6 +556,7 @@ createLandmarkMarker(
       questionActive = false;
       answerSubmitted = false;
 
+      // Reveal the map, retaining any tiles already uncovered
       tileFog.style.display = 'none';
       shade.classList.add('is-revealed');
       centerUI.classList.add('is-hidden');
@@ -554,6 +566,7 @@ createLandmarkMarker(
 
       status.innerHTML = 'MAP REVEALED<br>LOOK QUICKLY';
 
+      // Restart the countdown animation
       timer.classList.remove('running');
       timerBar.style.animation = 'none';
       timerBar.offsetHeight;
@@ -564,81 +577,85 @@ createLandmarkMarker(
     });
 
     // Check the player's answer
-    map.on('click', event => {
-      if (!questionActive || isRevealed || answerSubmitted) {
-        return;
-      }
+    // Check whether the player clicked the correct fog tile
+map.on('click', event => {
+  if (!questionActive || isRevealed || answerSubmitted) {
+    return;
+  }
 
-      const clickedLocation = [
-        event.lngLat.lng,
-        event.lngLat.lat
-      ];
+  const landmark = landmarks[currentQuestion];
 
-      const landmark = landmarks[currentQuestion];
-      const distance = distanceMetres(
-        clickedLocation,
-        landmark.coordinates
-      );
+  // Find the fog tile containing the correct landmark
+  const correctTile = getTileForCoordinates(
+    landmark.coordinates
+  );
 
-      if (distance <= MAX_DISTANCE_METRES) {
-        answerSubmitted = true;
-        questionActive = false;
+  // Find the fog tile the player clicked
+  const clickedCol = Math.floor(event.point.x / TILE_SIZE);
+  const clickedRow = Math.floor(event.point.y / TILE_SIZE);
 
-        // Reveal this tile without affecting the grid's other tile positions
-        revealTile(event.point);
+  if (
+    clickedCol === correctTile.col &&
+    clickedRow === correctTile.row
+  ) {
+    answerSubmitted = true;
+    questionActive = false;
 
-        centerUI.classList.remove('is-hidden');
+    // Reveal the tile the player correctly identified
+    revealTile(event.point);
 
-        heading.textContent = 'Correct!';
+    centerUI.classList.remove('is-hidden');
 
-        subtitle.textContent =
-          `You were ${Math.round(distance)} metres from ${landmark.name}.`;
+    heading.textContent = 'Correct!';
 
-        timer.classList.remove('running');
-        timerBar.style.animation = 'none';
+    subtitle.textContent =
+      `You found ${landmark.name}!`;
 
-        
-if (currentQuestion === 1) {
-  // Prepare the second question
-  currentQuestion = 2;
+    timer.classList.remove('running');
+    timerBar.style.animation = 'none';
 
-  heading.textContent = 'Correct!';
+    if (currentQuestion < 3) {
+      const completedLandmark = landmark.name;
+      currentQuestion++;
 
-  subtitle.textContent =
-    'You found the Eiffel Tower! Study the map again before your next guess. When it disappears, click where you think Notre-Dame Cathedral is located.';
+      subtitle.textContent =
+        `You found ${completedLandmark}! Study the map again before your next guess. When it disappears, click the tile containing ${landmarks[currentQuestion].name}.`;
 
-  hint.textContent =
-    'Ready for Question 2? Reveal the map for three seconds.';
+      hint.textContent =
+        `Ready for Question ${currentQuestion}? Reveal the map for three seconds.`;
 
-  status.innerHTML = 'CORRECT<br>ONE TILE REVEALED';
+      status.innerHTML =
+        `CORRECT<br>${currentQuestion - 1} TILE${currentQuestion - 1 > 1 ? 'S' : ''} REVEALED`;
 
-  button.style.display = 'block';
-  button.disabled = false;
-  button.textContent = 'Reveal the map';
+      button.style.display = 'block';
+      button.disabled = false;
+      button.textContent = 'Reveal the map';
 
-} else {
-  // Both questions have been answered correctly
-  heading.textContent = 'Paris explored!';
+    } else {
+      heading.textContent = 'Paris explored!';
 
-  subtitle.textContent =
-    'You found both the Eiffel Tower and Notre-Dame Cathedral. Two tiles revealed!';
+      subtitle.textContent =
+        'You found the Eiffel Tower, Notre-Dame Cathedral and the Musée du Louvre. Three tiles revealed!';
 
-  hint.textContent = 'Challenge complete. Well played!';
+      hint.textContent =
+        'Challenge complete. Well played!';
 
-  status.innerHTML = 'CHALLENGE COMPLETE<br>2 TILES REVEALED';
+      status.innerHTML =
+        'CHALLENGE COMPLETE<br>3 TILES REVEALED';
 
-  button.style.display = 'none';
-}
-} else {
-  heading.textContent = 'Not quite!';
+      button.style.display = 'none';
+    }
 
-  subtitle.textContent =
-    `Your guess was ${Math.round(distance)} metres from ${landmark.name}. Try again.`;
+  } else {
+    heading.textContent = 'Not quite!';
 
-  hint.textContent = 'Click another location on the map.';
-}
+    subtitle.textContent =
+      `That isn't the tile containing ${landmark.name}. Try again.`;
 
-    });
+    hint.textContent =
+      'Click another tile on the map.';
+  }
+});
 
     // Initialise the game once the map has loaded
     map.on('load', () => {
@@ -653,8 +670,8 @@ if (currentQuestion === 1) {
       heading.textContent = 'Ready to explore?';
 
       subtitle.textContent =
-  'Study the streets and landmarks of Paris for three seconds. When the map is hidden again, click where you think the Eiffel Tower is located.';
-        
+        'Study the streets and landmarks of Paris for three seconds. When the map is hidden, find the Eiffel Tower, Notre-Dame Cathedral and the Musée du Louvre.';
+
       hint.textContent =
         'The map will darken again automatically.';
 
@@ -662,7 +679,8 @@ if (currentQuestion === 1) {
       button.disabled = false;
       button.textContent = 'Reveal the map';
 
-      status.innerHTML = 'MEMORISE THE MAP<br>3 SECOND VIEW';
+      status.innerHTML =
+        'MEMORISE THE MAP<br>3 SECOND VIEW';
 
       currentQuestion = 1;
       questionActive = false;
@@ -675,6 +693,7 @@ if (currentQuestion === 1) {
       map.resize();
       createFogTiles();
     });
+
 
   </script>
 
