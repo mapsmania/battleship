@@ -87,6 +87,50 @@ body {
   border: 1px solid #080808;
 }
 
+/* Styling for incorrect tile feedback */
+.fog-tile.wrong-tile {
+  background-color: #ff3366 !important;
+  border-color: #ff0044 !important;
+  box-shadow: inset 0 0 15px rgba(255, 0, 70, 0.8);
+  animation: tileShake 0.4s ease-in-out;
+  z-index: 10;
+}
+
+@keyframes tileShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}    
+
+.fog-tile.is-correctly-revealed {
+  animation: correctReveal 600ms ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes correctReveal {
+  0% {
+    opacity: 1;
+    background: var(--cyan);
+    box-shadow: inset 0 0 0 3px var(--cyan),
+                0 0 25px var(--cyan);
+  }
+
+  35% {
+    opacity: 1;
+    background: var(--cyan);
+    box-shadow: inset 0 0 0 3px var(--cyan),
+                0 0 35px var(--cyan);
+  }
+
+  100% {
+    opacity: 0;
+    box-shadow: inset 0 0 0 3px var(--cyan),
+                0 0 15px var(--cyan);
+  }
+}
+      
 /* Sidebar */
 #sidebar {
   position: relative;
@@ -117,8 +161,12 @@ body {
 }
 
 .highlight-landmark {
-  color: var(--cyan);
-}      
+  color: #071522;
+  background: var(--cyan);
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-weight: 700;
+}
 
 .location-label,
 .eyebrow {
@@ -247,9 +295,7 @@ h1 {
 /* Custom landmark markers */
 .landmark-marker {
   width: 44px;
-  height: 44px;
-  
-  
+  height: 44px; 
 }      
 
 /* Mobile: map above the sidebar controls */
@@ -497,22 +543,32 @@ h1 {
       }
     }
 
-    // Reveal the tile at the clicked screen position
-    function revealTile(point) {
-      const col = Math.floor(point.x / TILE_SIZE);
-      const row = Math.floor(point.y / TILE_SIZE);
+   // Reveal the correct tile with an animation
+function revealTile(point) {
+  const col = Math.floor(point.x / TILE_SIZE);
+  const row = Math.floor(point.y / TILE_SIZE);
 
-      const tile = tileFog.querySelector(
-        `.fog-tile[data-row="${row}"][data-col="${col}"]`
-      );
+  const tile = tileFog.querySelector(
+    `.fog-tile[data-row="${row}"][data-col="${col}"]`
+  );
 
-      if (tile) {
-        tile.remove();
-      } else {
-        console.warn('Could not find fog tile:', { col, row });
-      }
-    }
+  if (!tile) {
+    console.warn('Could not find fog tile:', { col, row });
+    return;
+  }
 
+  // Restart the animation if the class was previously applied
+  tile.classList.remove('is-correctly-revealed');
+  void tile.offsetWidth;
+
+  tile.classList.add('is-correctly-revealed');
+
+  // Remove the tile when its animation completes
+  tile.addEventListener('animationend', () => {
+    tile.remove();
+  }, { once: true });
+}
+      
     // Find the fog tile containing geographic coordinates
     function getTileForCoordinates(coordinates) {
       const point = map.project(coordinates);
@@ -539,8 +595,8 @@ h1 {
 
       heading.textContent = `Question ${currentQuestion + 1}`;
 
-      subtitle.textContent =
-        `Click on the map tile containing ${landmark.name}.`;
+      subtitle.innerHTML =
+  `Click on the map tile containing <span class="highlight-landmark">${landmark.name}</span>.`;
 
       hint.textContent = 'Select your answer on the map.';
       button.style.display = 'none';
@@ -655,10 +711,27 @@ button.textContent = 'Reveal the map';
         }
 
       } else {
-        // Incorrect tile: let the player try again
+        // Incorrect tile: provide visual feedback on the clicked tile
+        const clickedTile = tileFog.querySelector(
+          `.fog-tile[data-row="${clickedRow}"][data-col="${clickedCol}"]`
+        );
+
+        if (clickedTile) {
+          // Remove class first in case it was previously clicked so animation re-triggers
+          clickedTile.classList.remove('wrong-tile');
+          void clickedTile.offsetWidth; // Trigger reflow to restart animation
+          clickedTile.classList.add('wrong-tile');
+
+          // Remove the red flash class after 500ms
+          setTimeout(() => {
+            clickedTile.classList.remove('wrong-tile');
+          }, 500);
+        }
+
+        // Update sidebar text
         heading.textContent = 'Not quite!';
 
-        subtitle.textContent =
+        subtitle.textContent = 
           `That isn't the tile containing ${landmark.name}. Try again.`;
 
         hint.textContent = 'Click another tile on the map.';
