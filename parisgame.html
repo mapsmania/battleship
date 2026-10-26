@@ -240,6 +240,14 @@ h1 {
   letter-spacing: .1em;
 }
 
+/* Custom landmark markers */
+.landmark-marker {
+  width: 44px;
+  height: 44px;
+  
+  
+}      
+
 /* Mobile: map above the sidebar controls */
 @media (max-width: 700px) {
   body {
@@ -384,6 +392,47 @@ h1 {
         coordinates: [2.3499, 48.8529]
       }
     };
+
+    // Custom landmark image markers
+const landmarkMarkers = [];
+
+function createLandmarkMarker(name, imageUrl, coordinates) {
+  const markerElement = document.createElement('img');
+
+  markerElement.className = 'landmark-marker';
+  markerElement.src = imageUrl;
+  markerElement.alt = name;
+  markerElement.title = name;
+  markerElement.width = 44;
+  markerElement.height = 44;
+  markerElement.draggable = false;
+
+  const marker = new maplibregl.Marker({
+    element: markerElement,
+    anchor: 'bottom'
+  })
+    .setLngLat(coordinates)
+    .addTo(map);
+
+  
+
+  landmarkMarkers.push(marker);
+}
+
+createLandmarkMarker(
+  'Eiffel Tower',
+  'https://mapsmania.github.io/battleship/eiffel.png',
+  landmarks[1].coordinates
+);
+
+createLandmarkMarker(
+  'Notre-Dame Cathedral',
+  'https://mapsmania.github.io/battleship/notre.png',
+  landmarks[2].coordinates
+);
+
+
+
 
     const TILE_SIZE = 128;
     const MAX_DISTANCE_METRES = 150;
