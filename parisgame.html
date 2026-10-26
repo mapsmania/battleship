@@ -1,0 +1,633 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Paris Tile Memory</title>
+
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --cyan: #00f0ff;
+      --panel: rgba(3, 14, 25, 0.9);
+    }
+
+    
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: #06111d;
+  color: #eafaff;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+#app-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* Map and fog share exactly the same boundaries */
+#map-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.shade {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+  opacity: 1;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.shade.is-revealed {
+  opacity: 0;
+}
+
+.tile-fog {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.fog-tile {
+  position: absolute;
+  width: 128px;
+  height: 128px;
+  background: #000;
+  border: 1px solid #080808;
+}
+
+/* Sidebar */
+#sidebar {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+  padding: 30px 24px 20px;
+  overflow-y: auto;
+  background: #071522;
+  border-left: 1px solid rgba(0, 240, 255, 0.22);
+}
+
+.sidebar-header {
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.18);
+}
+
+.brand {
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: .16em;
+}
+
+.brand span {
+  color: var(--cyan);
+}
+
+.location-label,
+.eyebrow {
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.location-label {
+  margin: 9px 0 0;
+}
+
+.status {
+  padding: 13px 14px;
+  background: var(--panel);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 10px;
+  color: #c6d7e2;
+  font-size: 12px;
+  line-height: 1.7;
+  letter-spacing: .06em;
+}
+
+/* The question card is now normal sidebar content */
+.center-ui {
+  display: block;
+  padding: 0;
+  pointer-events: auto;
+}
+
+.center-ui.is-hidden {
+  display: none;
+}
+
+.control-card {
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  text-align: left;
+  pointer-events: auto;
+}
+
+
+      
+h1 {
+  margin: 0 0 14px;
+  font-size: clamp(24px, 2vw, 32px);
+  line-height: 1.2;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.subtitle {
+  margin: 0 0 22px;
+  max-width: 340px;
+  color: #b3c7d4;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+#revealButton {
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid var(--cyan);
+  border-radius: 11px;
+  background: var(--cyan);
+  color: #03111b;
+  font: inherit;
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 0 24px rgba(0, 240, 255, .15);
+}
+
+#revealButton:hover {
+  box-shadow: 0 0 32px rgba(0, 240, 255, .3);
+}
+
+.timer {
+  height: 3px;
+  margin-top: 20px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .1);
+  border-radius: 99px;
+}
+
+#timerBar {
+  width: 0%;
+  height: 100%;
+  background: var(--cyan);
+}
+
+.timer.running #timerBar {
+  animation: countdown 3s linear forwards;
+}
+
+@keyframes countdown {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+.hint {
+  margin: 13px 0 0;
+  color: #7f9aaa;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid rgba(0, 240, 255, 0.15);
+  color: #637d8d;
+  font-size: 9px;
+  line-height: 1.6;
+  letter-spacing: .1em;
+}
+
+/* Mobile: map above the sidebar controls */
+@media (max-width: 700px) {
+  body {
+    overflow: auto;
+  }
+
+  #app-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(260px, 55dvh) minmax(0, 1fr);
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  #map-panel {
+    grid-row: 1;
+    min-height: 260px;
+  }
+
+  #sidebar {
+    grid-row: 2;
+    gap: 18px;
+    padding: 22px 20px;
+    overflow: visible;
+    border-left: 0;
+    border-top: 1px solid rgba(0, 240, 255, 0.22);
+  }
+
+  .sidebar-header {
+    padding-bottom: 14px;
+  }
+
+  .sidebar-footer {
+    margin-top: 8px;
+  }
+}
+
+  </style>
+</head>
+
+<body>
+  <div id="app-layout">
+
+    <!-- Main map area: fog overlays stay aligned with the map -->
+    <main id="map-panel">
+      <div id="map" aria-label="Map of Paris"></div>
+
+      <div id="shade" class="shade" aria-hidden="true"></div>
+
+      <div id="tileFog" class="tile-fog" aria-hidden="true"></div>
+    </main>
+
+    <!-- All interface elements sit outside the map -->
+    <aside id="sidebar">
+
+      <header class="sidebar-header">
+        <div class="brand">MAP <span>MEMORY</span></div>
+        <p class="location-label">PARIS EDITION</p>
+      </header>
+
+      <div class="status" id="status">
+        MEMORISE THE MAP<br>
+        3 SECOND VIEW
+      </div>
+
+      <section class="center-ui">
+        <div class="control-card" aria-live="polite">
+
+          <div class="eyebrow">GEOGRAPHY CHALLENGE / 01</div>
+
+          <h1 id="heading">Ready to explore?</h1>
+
+          <p class="subtitle" id="subtitle">
+            Study the streets and landmarks of Paris.
+            You’ll have three seconds to memorise the map.
+          </p>
+
+          <button id="revealButton" type="button">
+            Reveal the map
+          </button>
+
+          <div class="timer" id="timer">
+            <div id="timerBar"></div>
+          </div>
+
+          <p class="hint" id="hint">
+            The map will darken again automatically.
+          </p>
+
+        </div>
+      </section>
+
+      <footer class="sidebar-footer">
+        MEMORISE THE STREETS. FIND THE LANDMARKS.
+      </footer>
+
+    </aside>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+  <script>
+    
+    // Create the Paris map
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tiles.openfreemap.org/styles/liberty',
+      center: [2.342, 48.861],
+      zoom: 11.65,
+      minZoom: 10.5,
+      maxZoom: 16,
+      pitch: 0,
+      bearing: 0,
+      attributionControl: true
+    });
+
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: false }),
+      'bottom-right'
+    );
+
+    // Page elements
+    const shade = document.getElementById('shade');
+    const tileFog = document.getElementById('tileFog');
+    const centerUI = document.querySelector('.center-ui');
+    const button = document.getElementById('revealButton');
+    const heading = document.getElementById('heading');
+    const subtitle = document.getElementById('subtitle');
+    const hint = document.getElementById('hint');
+    const status = document.getElementById('status');
+    const timer = document.getElementById('timer');
+    const timerBar = document.getElementById('timerBar');
+
+    // Landmark coordinates: longitude, latitude
+    const landmarks = {
+      1: {
+        name: 'Eiffel Tower',
+        coordinates: [2.2945, 48.8584]
+      },
+      2: {
+        name: 'Notre-Dame Cathedral',
+        coordinates: [2.3499, 48.8529]
+      }
+    };
+
+    const TILE_SIZE = 128;
+    const MAX_DISTANCE_METRES = 150;
+
+    let timeoutId = null;
+    let isRevealed = false;
+    let questionActive = false;
+    let answerSubmitted = false;
+    let currentQuestion = 1;
+
+    // Calculate distance between two geographic coordinates
+    function distanceMetres(a, b) {
+      const toRadians = degrees => degrees * Math.PI / 180;
+      const earthRadius = 6371000;
+
+      const lat1 = toRadians(a[1]);
+      const lat2 = toRadians(b[1]);
+      const deltaLat = toRadians(b[1] - a[1]);
+      const deltaLon = toRadians(b[0] - a[0]);
+
+      const h =
+        Math.sin(deltaLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) *
+        Math.sin(deltaLon / 2) ** 2;
+
+      return 2 * earthRadius *
+        Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+    }
+
+    // Create the black grid over the map
+    function createFogTiles() {
+      tileFog.innerHTML = '';
+
+      const width = map.getContainer().clientWidth;
+      const height = map.getContainer().clientHeight;
+      const cols = Math.ceil(width / TILE_SIZE);
+      const rows = Math.ceil(height / TILE_SIZE);
+
+      tileFog.dataset.cols = cols;
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const tile = document.createElement('div');
+
+          tile.className = 'fog-tile';
+          tile.dataset.row = row;
+          tile.dataset.col = col;
+          tile.style.left = `${col * TILE_SIZE}px`;
+          tile.style.top = `${row * TILE_SIZE}px`;
+
+          tileFog.appendChild(tile);
+        }
+      }
+    }
+
+    // Remove the tile at the clicked screen position
+    function revealTile(point) {
+      const col = Math.floor(point.x / TILE_SIZE);
+      const row = Math.floor(point.y / TILE_SIZE);
+
+      const tile = tileFog.querySelector(
+        `.fog-tile[data-row="${row}"][data-col="${col}"]`
+      );
+
+      if (tile) {
+        tile.remove();
+      } else {
+        console.warn('Could not find fog tile:', { col, row });
+      }
+    }
+
+    // Show the active question after the three-second preview
+    function showQuestion() {
+      shade.classList.add('is-revealed');
+      tileFog.style.display = 'block';
+
+      centerUI.classList.remove('is-hidden');
+      centerUI.classList.add('question-mode');
+
+      isRevealed = false;
+      questionActive = true;
+      answerSubmitted = false;
+
+      const landmark = landmarks[currentQuestion];
+
+      heading.textContent = `Question ${currentQuestion}`;
+
+      subtitle.textContent =
+        `Click on the map where you think ${landmark.name} is located.`;
+
+      hint.textContent = 'Select your answer on the map.';
+      button.style.display = 'none';
+
+      status.innerHTML =
+        `QUESTION ${currentQuestion}<br>FIND ${landmark.name.toUpperCase()}`;
+
+      timer.classList.remove('running');
+      timerBar.style.animation = 'none';
+    }
+
+    // Show the map for three seconds
+    button.addEventListener('click', () => {
+      if (isRevealed || questionActive) return;
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      isRevealed = true;
+      questionActive = false;
+      answerSubmitted = false;
+
+      tileFog.style.display = 'none';
+      shade.classList.add('is-revealed');
+      centerUI.classList.add('is-hidden');
+
+      button.disabled = true;
+      button.textContent = 'Memorise it!';
+
+      status.innerHTML = 'MAP REVEALED<br>LOOK QUICKLY';
+
+      timer.classList.remove('running');
+      timerBar.style.animation = 'none';
+      timerBar.offsetHeight;
+      timerBar.style.animation = '';
+      timer.classList.add('running');
+
+      timeoutId = setTimeout(showQuestion, 3000);
+    });
+
+    // Check the player's answer
+    map.on('click', event => {
+      if (!questionActive || isRevealed || answerSubmitted) {
+        return;
+      }
+
+      const clickedLocation = [
+        event.lngLat.lng,
+        event.lngLat.lat
+      ];
+
+      const landmark = landmarks[currentQuestion];
+      const distance = distanceMetres(
+        clickedLocation,
+        landmark.coordinates
+      );
+
+      if (distance <= MAX_DISTANCE_METRES) {
+        answerSubmitted = true;
+        questionActive = false;
+
+        // Reveal this tile without affecting the grid's other tile positions
+        revealTile(event.point);
+
+        centerUI.classList.remove('is-hidden');
+
+        heading.textContent = 'Correct!';
+
+        subtitle.textContent =
+          `You were ${Math.round(distance)} metres from ${landmark.name}.`;
+
+        timer.classList.remove('running');
+        timerBar.style.animation = 'none';
+
+        
+if (currentQuestion === 1) {
+  // Prepare the second question
+  currentQuestion = 2;
+
+  heading.textContent = 'Correct!';
+
+  subtitle.textContent =
+    'You found the Eiffel Tower! Study the map again before your next guess. When it disappears, click where you think Notre-Dame Cathedral is located.';
+
+  hint.textContent =
+    'Ready for Question 2? Reveal the map for three seconds.';
+
+  status.innerHTML = 'CORRECT<br>ONE TILE REVEALED';
+
+  button.style.display = 'block';
+  button.disabled = false;
+  button.textContent = 'Reveal the map';
+
+} else {
+  // Both questions have been answered correctly
+  heading.textContent = 'Paris explored!';
+
+  subtitle.textContent =
+    'You found both the Eiffel Tower and Notre-Dame Cathedral. Two tiles revealed!';
+
+  hint.textContent = 'Challenge complete. Well played!';
+
+  status.innerHTML = 'CHALLENGE COMPLETE<br>2 TILES REVEALED';
+
+  button.style.display = 'none';
+}
+} else {
+  heading.textContent = 'Not quite!';
+
+  subtitle.textContent =
+    `Your guess was ${Math.round(distance)} metres from ${landmark.name}. Try again.`;
+
+  hint.textContent = 'Click another location on the map.';
+}
+
+    });
+
+    // Initialise the game once the map has loaded
+    map.on('load', () => {
+      createFogTiles();
+
+      shade.classList.remove('is-revealed');
+      tileFog.style.display = 'none';
+
+      centerUI.classList.remove('is-hidden');
+      centerUI.classList.remove('question-mode');
+
+      heading.textContent = 'Ready to explore?';
+
+      subtitle.textContent =
+  'Study the streets and landmarks of Paris for three seconds. When the map is hidden again, click where you think the Eiffel Tower is located.';
+        
+      hint.textContent =
+        'The map will darken again automatically.';
+
+      button.style.display = 'block';
+      button.disabled = false;
+      button.textContent = 'Reveal the map';
+
+      status.innerHTML = 'MEMORISE THE MAP<br>3 SECOND VIEW';
+
+      currentQuestion = 1;
+      questionActive = false;
+      isRevealed = false;
+      answerSubmitted = false;
+    });
+
+    // Resize the map and rebuild the fog grid
+    window.addEventListener('resize', () => {
+      map.resize();
+      createFogTiles();
+    });
+
+  </script>
+
+</body>
+</html>
