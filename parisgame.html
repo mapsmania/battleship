@@ -296,6 +296,28 @@ h1 {
 .landmark-marker {
   width: 44px;
   height: 44px; 
+}
+
+
+.lives-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-size: 24px;
+  letter-spacing: 3px;
+}
+
+.life {
+  color: #ff5364;
+  text-shadow: 0 0 10px rgba(255, 83, 100, 0.5);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.life.lost {
+  color: #435064;
+  opacity: 0.5;
+  text-shadow: none;
 }      
 
 /* Mobile: map above the sidebar controls */
@@ -354,9 +376,11 @@ h1 {
     <aside id="sidebar">
 
       <header class="sidebar-header">
-        <div class="brand">MAP <span>MEMORY</span></div>
+        <div class="brand">Flash <span>Map</span></div>
         <p class="location-label">PARIS EDITION</p>
       </header>
+
+      <div id="livesDisplay" class="lives-display" aria-live="polite"></div>   
 
       <div class="status" id="status">
         MEMORISE THE MAP<br>
@@ -389,6 +413,8 @@ h1 {
 
         </div>
       </section>
+
+       
 
       <footer class="sidebar-footer">
         MEMORISE THE STREETS. FIND THE LANDMARKS.
@@ -430,6 +456,12 @@ h1 {
     const status = document.getElementById('status');
     const timer = document.getElementById('timer');
     const timerBar = document.getElementById('timerBar');
+    const MAX_LIVES = 3;
+
+let lives = MAX_LIVES;
+let gameOver = false;
+
+const livesDisplay = document.getElementById('livesDisplay');  
 
     // Add or remove landmarks here.
     // Coordinates must be [longitude, latitude].
@@ -543,6 +575,24 @@ h1 {
       }
     }
 
+    // Update the lives display
+function updateLivesDisplay() {
+  livesDisplay.innerHTML = '';
+
+  for (let i = 0; i < MAX_LIVES; i++) {
+    const heart = document.createElement('span');
+
+    heart.className = i < lives ? 'life' : 'life lost';
+    heart.textContent = '♥';
+    heart.setAttribute(
+      'aria-label',
+      i < lives ? 'Life remaining' : 'Life lost'
+    );
+
+    livesDisplay.appendChild(heart);
+  }
+}  
+
    // Reveal the correct tile with an animation
 function revealTile(point) {
   const col = Math.floor(point.x / TILE_SIZE);
@@ -610,6 +660,50 @@ function revealTile(point) {
 
     // Show the map for three seconds
     button.addEventListener('click', () => {
+
+      // Restart the game if the player has lost
+if (gameOver) {
+  gameOver = false;
+  lives = MAX_LIVES;
+  currentQuestion = 0;
+  answerSubmitted = false;
+  questionActive = false;
+  isRevealed = false;
+
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    timeoutId = null;
+  }
+
+  // Restore all fog tiles
+  createFogTiles();
+
+  // Reset the map and interface
+  shade.classList.remove('is-revealed');
+  tileFog.style.display = 'none';
+
+  centerUI.classList.remove('is-hidden');
+  centerUI.classList.remove('question-mode');
+
+  heading.textContent = 'Ready to explore?';
+
+  subtitle.textContent =
+    `Study the streets and landmarks of Paris for three seconds. When the map is hidden, find ${totalQuestions} landmarks.`;
+
+  hint.textContent = 'The map will darken again automatically.';
+
+  status.innerHTML =
+    `MEMORISE THE MAP<br>3 SECOND VIEW · ${totalQuestions} LANDMARKS`;
+
+  updateLivesDisplay();
+
+  button.style.display = 'block';
+  button.disabled = false;
+  button.textContent = 'Reveal the map';
+
+  return;
+}  
+        
       if (isRevealed || questionActive) return;
 
       if (timeoutId) {
@@ -639,6 +733,40 @@ function revealTile(point) {
 
       timeoutId = setTimeout(showQuestion, 3000);
     });
+
+    // End the game when all lives are lost
+function endGame() {
+  gameOver = true;
+  questionActive = false;
+  isRevealed = false;
+
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    timeoutId = null;
+  }
+
+  timer.classList.remove('running');
+  timerBar.style.animation = 'none';
+
+  centerUI.classList.remove('is-hidden');
+
+  heading.textContent = 'Game Over!';
+
+  subtitle.textContent =
+    `You've run out of lives. You found ${currentQuestion} of ${totalQuestions} landmarks.`;
+
+  hint.textContent =
+    'Try again and see if you can find every landmark.';
+
+  status.innerHTML = 'GAME OVER<br>NO LIVES REMAINING';
+
+  button.style.display = 'block';
+  button.disabled = false;
+  button.textContent = 'Play again';
+
+  tileFog.style.display = 'block';
+  shade.classList.add('is-revealed');
+}  
 
     // Check whether the player clicked the correct fog tile
     map.on('click', event => {
@@ -712,6 +840,16 @@ button.textContent = 'Reveal the map';
 
       } else {
         // Incorrect tile: provide visual feedback on the clicked tile
+        // Deduct one life for an incorrect guess
+lives--;
+updateLivesDisplay();
+
+// End the game if no lives remain
+if (lives <= 0) {
+  endGame();
+  return;
+}
+          
         const clickedTile = tileFog.querySelector(
           `.fog-tile[data-row="${clickedRow}"][data-col="${clickedCol}"]`
         );
@@ -739,7 +877,7 @@ button.textContent = 'Reveal the map';
     });
 
     // Initialise the game once the map has loaded
-    map.on('load', () => {
+    
       createFogTiles();
 
       shade.classList.remove('is-revealed');
@@ -767,6 +905,11 @@ button.textContent = 'Reveal the map';
       questionActive = false;
       isRevealed = false;
       answerSubmitted = false;
+
+      map.on('load', () => {
+      lives = MAX_LIVES;
+gameOver = false;
+updateLivesDisplay();  
     });
 
     // Resize the map and rebuild the fog grid
